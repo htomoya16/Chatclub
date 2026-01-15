@@ -1,0 +1,87 @@
+name: yasairap
+
+volumes:
+  mysql_data:
+  go_build_cache:   # dev の go build キャッシュ
+  go_mod_cache:     # dev の go mod キャッシュ
+
+networks:
+  yasairap_network:
+    driver: bridge
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: yasairap_mysql
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --init-connect=SET NAMES utf8mb4
+      - --character-set-filesystem=utf8mb4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: ${MYSQL_TZ:-UTC}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./config/mysql.cnf:/etc/mysql/conf.d/mysql.cnf
+    networks:
+      - yasairap_network
+
+  # 本番（Dockerfile のステージ: prod）
+  app:
+    profiles: ["prod"]
+    build:
+      context: .
+      target: prod
+    container_name: yasairap_backend
+    depends_on:
+      - mysql
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_APP_ID: ${DISCORD_APP_ID}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      PORT: ${APP_PORT:-8080}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks: [yasairap_network]
+    restart: unless-stopped
+
+  # 開発（Dockerfile のステージ: dev）
+  app-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    container_name: yasairap_dev_backend
+    depends_on:
+      - mysql
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_APP_ID: ${DISCORD_APP_ID}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      PORT: ${APP_PORT:-8080}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    # airに必要 ボリュームをマウント
+    volumes:
+      - .:/app
+      - go_build_cache:/root/.cache/go-build
+      - go_mod_cache:/go/pkg/mod
+    networks: [yasairap_network]
+    restart: unless-stopped

@@ -1,0 +1,5 @@
+h1:zlAhfD2t2Re6Suyn/Kwg+TBiNTltA0ZDEuGCYyUG5gk=
+20251105000001_init.sql h1:ObDEJIYh2RCRUx+SvJUJgH8lTlvKu4K00OJe/MxFSDM=
+20251105115018_add_discord_VRC_whitelist.sql h1:EirJo5FpV9AcdB0qkyn7FxVw9BduQEf/M11GUa3dpuw=
+20251109030644_add_tournament_and_cypher_system.sql h1:H/dDiXp1XNrTCv+TtPpnb5VAQjl9xpEj3/B/0n7aJZg=
+20251109033400_fix_whitelist_table.sql h1:hhGCxb93pwwKioP0TUgUEQmZD6t0/ZX+/hHVjFRRjUs=
