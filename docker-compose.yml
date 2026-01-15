@@ -1,4 +1,4 @@
-name: yasairap
+name: chatclub
 
 volumes:
   mysql_data:
@@ -6,13 +6,13 @@ volumes:
   go_mod_cache:     # dev の go mod キャッシュ
 
 networks:
-  yasairap_network:
+  chatclub_network:
     driver: bridge
 
 services:
   mysql:
     image: mysql:8.4
-    container_name: yasairap_mysql
+    container_name: chatclub_mysql
     command: 
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -31,7 +31,7 @@ services:
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./config/mysql.cnf:/etc/mysql/conf.d/mysql.cnf
     networks:
-      - yasairap_network
+      - chatclub_network
 
   # 本番（Dockerfile のステージ: prod）
   app:
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       target: prod
-    container_name: yasairap_backend
+    container_name: chatclub_backend
     depends_on:
       - mysql
     environment:
@@ -54,7 +54,7 @@ services:
       PORT: ${APP_PORT:-8080}
     ports:
       - "${APP_PORT:-8080}:8080"
-    networks: [yasairap_network]
+    networks: [chatclub_network]
     restart: unless-stopped
 
   # 開発（Dockerfile のステージ: dev）
@@ -63,7 +63,7 @@ services:
     build:
       context: .
       target: dev
-    container_name: yasairap_dev_backend
+    container_name: chatclub_dev_backend
     depends_on:
       - mysql
     environment:
@@ -83,5 +83,5 @@ services:
       - .:/app
       - go_build_cache:/root/.cache/go-build
       - go_mod_cache:/go/pkg/mod
-    networks: [yasairap_network]
+    networks: [chatclub_network]
     restart: unless-stopped

@@ -77,8 +77,8 @@ COPY . .
 ENV CGO_ENABLED=0 \
     PORT=8080
 
-# 40000 は delveのデバッグポート
-EXPOSE 8080 40000
+
+EXPOSE 8080
 
 # ホットリロード起動
 CMD ["air", "-c", ".air.toml"]
