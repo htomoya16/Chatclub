@@ -31,6 +31,9 @@ func main() {
 	healthSevice := service.NewHealthService(healthRepo)
 	healthHandler := api.NewHealthHandler(healthSevice)
 
+	anonRepo := repository.NewAnonymousChannelRepository(db)
+	anonService := service.NewAnonymousChannelService(anonRepo)
+
 	// Echo インスタンスを作成
 	e := echo.New()
 
@@ -107,8 +110,9 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter()
+		router := discord.NewRouter(anonService)
 		dSession.AddHandler(router.HandleInteraction)
+		dSession.AddHandler(router.HandleMessageCreate)
 
 		go func() {
 			ctxStart, cancel := context.WithTimeout(context.Background(), 5*time.Second)

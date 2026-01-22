@@ -22,7 +22,8 @@ type session struct {
 
 // 固定で使うIntent。
 const defaultIntents = discordgo.IntentsGuilds |
-	discordgo.IntentsGuildMessages
+	discordgo.IntentsGuildMessages |
+	discordgo.IntentsMessageContent
 
 func NewSession(token string) (Session, error) {
 	if token == "" {

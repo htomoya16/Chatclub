@@ -1,9 +1,14 @@
 package discord
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"backend/internal/service"
+
+	"github.com/bwmarrin/discordgo"
+)
 
 // Router は Discord の Interaction を各ハンドラに振り分ける役割。
 type Router struct {
+	AnonymousChannelService service.AnonymousChannelService
 	// TournamentService service.TournamentService
 	// CypherService     service.CypherService
 	// BeatService       service.BeatService
@@ -11,11 +16,13 @@ type Router struct {
 
 // NewRouter で必要な service を全部 DI しておく。
 func NewRouter(
+	anonymousChannelService service.AnonymousChannelService,
 	// tournamentService service.TournamentService,
 	// cypherService service.CypherService,
 	// beatService service.BeatService,
 ) *Router {
 	return &Router{
+		AnonymousChannelService: anonymousChannelService,
 		// TournamentService: tournamentService,
 		// CypherService:     cypherService,
 		// BeatService:       beatService,
@@ -36,6 +43,10 @@ func (r *Router) HandleInteraction(s *discordgo.Session, i *discordgo.Interactio
 	case "ping":
 		// /ping
 		r.handlePing(s, i)
+	case "anon":
+		r.handleAnon(s, i)
+	case "anon-channel":
+		r.handleAnonChannel(s, i)
 
 	// 将来的な拡張 (コメントアウトしておいてOK)
 	// case "tournament":

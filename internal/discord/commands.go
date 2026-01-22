@@ -4,10 +4,90 @@ import "github.com/bwmarrin/discordgo"
 
 // Commands はこのBotで使う全てのスラッシュコマンド定義を返す。
 func Commands() []*discordgo.ApplicationCommand {
+	manageChannelsPerm := int64(discordgo.PermissionManageChannels)
 	return []*discordgo.ApplicationCommand{
 		{
 			Name:        "ping",
 			Description: "Check if the bot is alive.",
+		},
+		{
+			Name:        "anon",
+			Description: "Post anonymously in this channel.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "message",
+					Description: "Message content",
+					Required:    false,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionAttachment,
+					Name:        "file1",
+					Description: "Attachment 1",
+					Required:    false,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionAttachment,
+					Name:        "file2",
+					Description: "Attachment 2",
+					Required:    false,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionAttachment,
+					Name:        "file3",
+					Description: "Attachment 3",
+					Required:    false,
+				},
+			},
+		},
+		{
+			Name:        "anon-channel",
+			Description: "Manage anonymous channels",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			DefaultMemberPermissions: &manageChannelsPerm,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "add",
+					Description: "Add a channel to anonymous list",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "Target text channel",
+							Required:    true,
+							ChannelTypes: []discordgo.ChannelType{
+								discordgo.ChannelTypeGuildText,
+								discordgo.ChannelTypeGuildNews,
+							},
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "remove",
+					Description: "Remove a channel from anonymous list",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionChannel,
+							Name:        "channel",
+							Description: "Target text channel",
+							Required:    true,
+							ChannelTypes: []discordgo.ChannelType{
+								discordgo.ChannelTypeGuildText,
+								discordgo.ChannelTypeGuildNews,
+							},
+						},
+					},
+				},
+			},
 		},
 		// ここに今後 /tournament /beat /cypher を足していく:
 		// {
