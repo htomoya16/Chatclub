@@ -52,10 +52,10 @@ DISCORD_GUILD_ID=your_test_guild_id
 #### 初回
 ```bash
 # Dockerコンテナを起動
-docker compose up --build
+docker compose --profile dev up --build
 
 # バックグラウンドで起動する場合
-docker compose up -d --build
+docker compose --profile dev up -d --build
 ```
 
 #### 初回以降

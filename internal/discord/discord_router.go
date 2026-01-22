@@ -1,29 +1,21 @@
 package discord
 
-import (
-	"backend/internal/service"
-
-	"github.com/bwmarrin/discordgo"
-)
+import "github.com/bwmarrin/discordgo"
 
 // Router は Discord の Interaction を各ハンドラに振り分ける役割。
 type Router struct {
-	WhitelistService service.WhitelistService
 	// TournamentService service.TournamentService
 	// CypherService     service.CypherService
 	// BeatService       service.BeatService
 }
 
 // NewRouter で必要な service を全部 DI しておく。
-// まだトーナメント等が未実装なら WhitelistService だけでもOK。
 func NewRouter(
-	whitelistService service.WhitelistService,
 	// tournamentService service.TournamentService,
 	// cypherService service.CypherService,
 	// beatService service.BeatService,
 ) *Router {
 	return &Router{
-		WhitelistService: whitelistService,
 		// TournamentService: tournamentService,
 		// CypherService:     cypherService,
 		// BeatService:       beatService,

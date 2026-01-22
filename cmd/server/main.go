@@ -27,11 +27,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// DI
-	whitelistRepo := repository.NewWhitelistRepository(db)
-	whitelistService := service.NewWhitelistService(whitelistRepo)
-	whitelistHandler := api.NewWhitelistHandler(whitelistService)
-
 	healthRepo := repository.NewHealthRepository(db)
 	healthSevice := service.NewHealthService(healthRepo)
 	healthHandler := api.NewHealthHandler(healthSevice)
@@ -52,7 +47,7 @@ func main() {
 	)
 
 	// ルート設定
-	api.SetupRoutes(e, healthHandler, whitelistHandler)
+	api.SetupRoutes(e, healthHandler)
 
 	// ポート設定
 	port := os.Getenv("PORT")
@@ -112,7 +107,7 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter(whitelistService)
+		router := discord.NewRouter()
 		dSession.AddHandler(router.HandleInteraction)
 
 		go func() {

@@ -7,8 +7,7 @@ import (
 func SetupRoutes(
 	// 引数
 	e *echo.Echo,
-	healthHandler *HealthHandler,
-	discord *WhitelistHandler) {
+	healthHandler *HealthHandler) {
 
 	api := e.Group("/api")
 
@@ -16,9 +15,4 @@ func SetupRoutes(
 	api.GET("/livez", healthHandler.Livez)
 	api.GET("/readyz", healthHandler.Readyz)
 	api.GET("/healthz", healthHandler.Healthz)
-
-	// Discord管理用
-	g := e.Group("/discord")
-	g.POST("/whitelist/add", discord.Add)
-	g.POST("/whitelist/remove", discord.Remove)
 }
