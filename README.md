@@ -1,7 +1,7 @@
-# 🥬 YasaiRap Backend
+# Chatclub Backend
 
-**YasaiRap Backend** は、VRChat 上で開催される大会・イベントを Discord から自動管理するためのバックエンドシステムである。  
-Discord Bot を介して出場登録、試合結果の記録、ホワイトリスト生成を行い、VRChat ワールドにデータを連携する。
+**Chatclub Backend** は、Discord サーバ内の**通話活動（VC）**や**ゲーム活動**を記録・集計し、  
+Discord Bot と Web から可視化するためのバックエンドシステムである。
 
 ---
 
@@ -11,7 +11,7 @@ Discord Bot を介して出場登録、試合結果の記録、ホワイトリ�
 |------|-----------|
 | 言語 | Go 1.25.1 |
 | Web Framework | Echo v4 |
-| DB | MySQL 8.4 |
+| DB | PostgreSQL 16 |
 | Migration | Atlas |
 | Container | Docker / docker-compose |
 | Discord連携 | [discordgo](https://github.com/bwmarrin/discordgo) |
@@ -21,8 +21,8 @@ Discord Bot を介して出場登録、試合結果の記録、ホワイトリ�
 
 ### 1. リポジトリ取得
 ```bash
-git clone https://github.com/htomoya16/YasaiRap_backend.git
-cd YasaiRap_backend
+git clone <YOUR_REPO_URL>
+cd Chatclub
 ```
 
 ### 2. 環境変数の設定
@@ -30,18 +30,17 @@ cd YasaiRap_backend
 `.env.example`より`.env` ファイルを作成し、以下を設定する。
 
 ```env
-# MySQL
-MYSQL_ROOT_PASSWORD=changeme
-MYSQL_DATABASE=yasairap
-MYSQL_USER=yasairap_user
-MYSQL_PASSWORD=changeme
-MYSQL_PORT=3306
-MYSQL_TZ=UTC
+# PostgreSQL
+POSTGRES_USER=chatclub_user
+POSTGRES_PASSWORD=changeme
+POSTGRES_DB=chatclub
+POSTGRES_PORT=5432
+POSTGRES_TZ=UTC
 
 # アプリ
 APP_PORT=8080
-DB_HOST=mysql
-DB_PORT=3306
+DB_HOST=postgres
+DB_PORT=5432
 
 # DISCORD関連
 DISCORD_TOKEN=your_discord_bot_token
@@ -117,7 +116,7 @@ atlas migrate apply --env local
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) にアクセスし、ログインする。  
 2. 「**New Application**」をクリックして新しいアプリケーションを作成。  
-   名前は例として `YasaiRap Bot` にしておくと分かりやすい。  
+   名前は例として `Chatclub Bot` にしておくと分かりやすい。  
 3. 作成後、左メニューから **Bot** を選び、「Add Bot」→「Yes, do it!」をクリック。  
 4. 作成された Bot のトークンをコピーして `.env` に設定する(Dockerセットアップ2.)。
 ```env
@@ -128,7 +127,7 @@ DISCORD_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 #### (1) Application ID
 
-1. Developer Portal のアプリケーションページで`YasaiRap Bot`を選択し **General Information** を開く。  
+1. Developer Portal のアプリケーションページで`Chatclub Bot`を選択し **General Information** を開く。  
 2. 「Application ID」をコピーして `.env` の `DISCORD_APP_ID` に設定する。
 
 #### (2) Guild ID（サーバID）
