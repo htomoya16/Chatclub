@@ -24,12 +24,6 @@ func Commands() []*discordgo.ApplicationCommand {
 					Description: "SF6 user code (sid)",
 					Required:    true,
 				},
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "display_name",
-					Description: "Display name (optional)",
-					Required:    false,
-				},
 			},
 		},
 		{

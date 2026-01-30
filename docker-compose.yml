@@ -56,6 +56,9 @@ services:
       BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
       BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
       BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
+      SF6_POLL_INTERVAL: ${SF6_POLL_INTERVAL:-4h}
+      SF6_POLL_MAX_PAGES: ${SF6_POLL_MAX_PAGES:-10}
+      SF6_POLL_ACCOUNT_DELAY_MAX: ${SF6_POLL_ACCOUNT_DELAY_MAX:-3s}
     ports:
       - "${APP_PORT:-8080}:8080"
     networks: [chatclub_network]
@@ -91,6 +94,9 @@ services:
       BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
       BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
       BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
+      SF6_POLL_INTERVAL: ${SF6_POLL_INTERVAL:-4h}
+      SF6_POLL_MAX_PAGES: ${SF6_POLL_MAX_PAGES:-10}
+      SF6_POLL_ACCOUNT_DELAY_MAX: ${SF6_POLL_ACCOUNT_DELAY_MAX:-3s}
     ports:
       - "${APP_PORT:-8080}:8080"
     # airに必要 ボリュームをマウント

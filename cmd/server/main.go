@@ -13,11 +13,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 )
 
 func main() {
@@ -34,6 +36,8 @@ func main() {
 
 	// Echo インスタンスを作成
 	e := echo.New()
+	e.Logger.SetLevel(log.INFO)
+	e.Logger.SetOutput(os.Stdout)
 
 	anonRepo := repository.NewAnonymousChannelRepository(db)
 	anonService := service.NewAnonymousChannelService(anonRepo)
@@ -42,7 +46,7 @@ func main() {
 	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6BattleRepo)
 	var sf6Service service.SF6Service
 	if cfg, err := buckler.LoadConfigFromEnv(); err != nil {
-		e.Logger.Warn("buckler config missing: sf6 commands disabled")
+		e.Logger.Warn("buckler config missing: sf6 commands disabled: ", err)
 	} else if bclient, err := buckler.NewClient(cfg); err != nil {
 		e.Logger.Error("buckler client init failed: ", err)
 	} else {
@@ -153,6 +157,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if sf6Service != nil {
+		pollInterval := envDuration("SF6_POLL_INTERVAL", 4*time.Hour)
+		maxPages := envInt("SF6_POLL_MAX_PAGES", 10)
+		accountDelayMax := envDuration("SF6_POLL_ACCOUNT_DELAY_MAX", 3*time.Second)
+		go service.RunSF6Poller(ctx, pollInterval, maxPages, accountDelayMax, sf6AccountRepo, sf6Service, e.Logger)
+	} else {
+		fmt.Printf("sf6 poller disabled: sf6Service is nil (check CAPCOM_EMAIL/CAPCOM_PASSWORD and Buckler config)")
+	}
+
 	// 「シグナルでの終了要求」か「サーバ起動側のエラー」のどちらが先かを競合待ちする
 	select {
 	case <-ctx.Done():
@@ -195,4 +208,28 @@ func main() {
 
 	e.Logger.Info("Server stopped")
 
+}
+
+func envDuration(key string, def time.Duration) time.Duration {
+	val := os.Getenv(key)
+	if val == "" {
+		return def
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return def
+	}
+	return d
+}
+
+func envInt(key string, def int) int {
+	val := os.Getenv(key)
+	if val == "" {
+		return def
+	}
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return def
+	}
+	return parsed
 }

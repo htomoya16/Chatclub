@@ -3,6 +3,7 @@ package discord
 import (
 	"backend/internal/domain"
 	"context"
+	"os"
 	"strconv"
 
 	"github.com/bwmarrin/discordgo"
@@ -20,13 +21,10 @@ func (r *Router) handleSF6Link(s *discordgo.Session, i *discordgo.InteractionCre
 
 	data := i.ApplicationCommandData()
 	var userCode string
-	var displayName string
 	for _, opt := range data.Options {
 		switch opt.Name {
 		case "user_code":
 			userCode = opt.StringValue()
-		case "display_name":
-			displayName = opt.StringValue()
 		}
 	}
 	if userCode == "" {
@@ -49,7 +47,6 @@ func (r *Router) handleSF6Link(s *discordgo.Session, i *discordgo.InteractionCre
 		GuildID:     i.GuildID,
 		UserID:      userID,
 		FighterID:   userCode,
-		DisplayName: displayName,
 		Status:      "active",
 	}
 	ctx := context.Background()
@@ -58,7 +55,35 @@ func (r *Router) handleSF6Link(s *discordgo.Session, i *discordgo.InteractionCre
 		followupEphemeral(s, i, "登録に失敗: "+err.Error())
 		return
 	}
-	followupEphemeral(s, i, "登録完了。移し替え件数: "+strconv.FormatInt(updated, 10))
+
+	totalSaved := 0
+	pagesFetched := 0
+	if r.SF6Service != nil {
+		maxPages := 10
+		if v := os.Getenv("SF6_POLL_MAX_PAGES"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				maxPages = n
+			}
+		}
+		for p := 1; p <= maxPages; p++ {
+			count, allExisting, err := r.SF6Service.FetchAndStoreCustomBattles(ctx, i.GuildID, userID, userCode, p)
+			if err != nil {
+				followupEphemeral(s, i, "登録完了。移し替え件数: "+strconv.FormatInt(updated, 10)+" / 初回取得に失敗: "+err.Error())
+				return
+			}
+			pagesFetched++
+			totalSaved += count
+			if allExisting {
+				break
+			}
+		}
+	}
+
+	msg := "登録完了。移し替え件数: " + strconv.FormatInt(updated, 10)
+	if pagesFetched > 0 {
+		msg += " / 初回取得: " + strconv.Itoa(totalSaved) + "件 (" + strconv.Itoa(pagesFetched) + " pages)"
+	}
+	followupEphemeral(s, i, msg)
 }
 
 func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCreate) {
