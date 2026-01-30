@@ -13,6 +13,7 @@ type SF6BattleRepository interface {
 	Upsert(ctx context.Context, battle domain.SF6Battle) error
 	BulkUpsert(ctx context.Context, battles []domain.SF6Battle) (int, error)
 	ReassignOwnerBySubject(ctx context.Context, guildID, subjectFighterID, newUserID string) (int64, error)
+	MarkOwnerKindUnlinkedBySubject(ctx context.Context, guildID, subjectFighterID string) (int64, error)
 	ExistingSourceKeys(ctx context.Context, guildID, subjectFighterID string, keys []string) (map[string]struct{}, error)
 	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
@@ -32,21 +33,25 @@ func (r *sf6BattleRepository) Upsert(ctx context.Context, battle domain.SF6Battl
 	if battle.SourceKey == "" {
 		return errors.New("sourceKey is required")
 	}
+	if battle.OwnerKind == "" {
+		battle.OwnerKind = "account"
+	}
 	if err := ensureGuildAndUser(ctx, r.db, battle.GuildID, battle.UserID); err != nil {
 		return err
 	}
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO sf6_battles (
-            guild_id, user_id, subject_fighter_id, opponent_fighter_id, battle_at, result,
+            guild_id, user_id, owner_kind, subject_fighter_id, opponent_fighter_id, battle_at, result,
             self_character, opponent_character, round_wins, round_losses,
             source_key, session_id, raw_payload
          ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10,
-            $11, $12, $13
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11,
+            $12, $13, $14
          )
          ON CONFLICT (guild_id, subject_fighter_id, source_key)
          DO UPDATE SET user_id = EXCLUDED.user_id,
+                       owner_kind = EXCLUDED.owner_kind,
                        opponent_fighter_id = EXCLUDED.opponent_fighter_id,
                        battle_at = EXCLUDED.battle_at,
                        result = EXCLUDED.result,
@@ -59,6 +64,7 @@ func (r *sf6BattleRepository) Upsert(ctx context.Context, battle domain.SF6Battl
                        updated_at = now()`,
 		battle.GuildID,
 		battle.UserID,
+		battle.OwnerKind,
 		battle.SubjectFighterID,
 		battle.OpponentFighterID,
 		battle.BattleAt,
@@ -90,16 +96,17 @@ func (r *sf6BattleRepository) BulkUpsert(ctx context.Context, battles []domain.S
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO sf6_battles (
-            guild_id, user_id, subject_fighter_id, opponent_fighter_id, battle_at, result,
+            guild_id, user_id, owner_kind, subject_fighter_id, opponent_fighter_id, battle_at, result,
             self_character, opponent_character, round_wins, round_losses,
             source_key, session_id, raw_payload
          ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10,
-            $11, $12, $13
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11,
+            $12, $13, $14
          )
          ON CONFLICT (guild_id, subject_fighter_id, source_key)
          DO UPDATE SET user_id = EXCLUDED.user_id,
+                       owner_kind = EXCLUDED.owner_kind,
                        opponent_fighter_id = EXCLUDED.opponent_fighter_id,
                        battle_at = EXCLUDED.battle_at,
                        result = EXCLUDED.result,
@@ -121,9 +128,13 @@ func (r *sf6BattleRepository) BulkUpsert(ctx context.Context, battles []domain.S
 		if battle.GuildID == "" || battle.UserID == "" || battle.SubjectFighterID == "" || battle.OpponentFighterID == "" || battle.SourceKey == "" {
 			return 0, errors.New("battle has missing required fields")
 		}
+		if battle.OwnerKind == "" {
+			battle.OwnerKind = "account"
+		}
 		if _, err := stmt.ExecContext(ctx,
 			battle.GuildID,
 			battle.UserID,
+			battle.OwnerKind,
 			battle.SubjectFighterID,
 			battle.OpponentFighterID,
 			battle.BattleAt,
@@ -155,9 +166,25 @@ func (r *sf6BattleRepository) ReassignOwnerBySubject(ctx context.Context, guildI
 	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE sf6_battles
-         SET user_id = $1, updated_at = now()
+         SET user_id = $1, owner_kind = 'account', updated_at = now()
          WHERE guild_id = $2 AND subject_fighter_id = $3`,
 		newUserID, guildID, subjectFighterID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func (r *sf6BattleRepository) MarkOwnerKindUnlinkedBySubject(ctx context.Context, guildID, subjectFighterID string) (int64, error) {
+	if guildID == "" || subjectFighterID == "" {
+		return 0, errors.New("guildID and subjectFighterID are required")
+	}
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE sf6_battles
+         SET owner_kind = 'unlinked', updated_at = now()
+         WHERE guild_id = $1 AND subject_fighter_id = $2`,
+		guildID, subjectFighterID,
 	)
 	if err != nil {
 		return 0, err

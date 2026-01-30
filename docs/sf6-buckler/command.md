@@ -4,8 +4,8 @@
 
 現状:
 
-- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`
-- 未実装: `/sf6_friend *`, `/watch_*`, `/sf6_stats`（設計のみ）
+- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`, `/sf6_friend *`
+- 未実装: `/watch_*`, `/sf6_stats`（設計のみ）
 
 補足: 本ドキュメントの fighter_id は **Buckler プロフィールの short_id（sid（ユーザーコード））** を指す。
 

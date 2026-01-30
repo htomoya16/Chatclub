@@ -15,11 +15,12 @@ type SF6AccountService interface {
 
 type sf6AccountService struct {
 	accountRepo repository.SF6AccountRepository
+	friendRepo  repository.SF6FriendRepository
 	battleRepo  repository.SF6BattleRepository
 }
 
-func NewSF6AccountService(accountRepo repository.SF6AccountRepository, battleRepo repository.SF6BattleRepository) SF6AccountService {
-	return &sf6AccountService{accountRepo: accountRepo, battleRepo: battleRepo}
+func NewSF6AccountService(accountRepo repository.SF6AccountRepository, friendRepo repository.SF6FriendRepository, battleRepo repository.SF6BattleRepository) SF6AccountService {
+	return &sf6AccountService{accountRepo: accountRepo, friendRepo: friendRepo, battleRepo: battleRepo}
 }
 
 func (s *sf6AccountService) UpsertAndReassign(ctx context.Context, account domain.SF6Account) (int64, error) {
@@ -36,11 +37,35 @@ func (s *sf6AccountService) Unlink(ctx context.Context, guildID, userID string) 
 	if guildID == "" || userID == "" {
 		return 0, errors.New("guildID and userID are required")
 	}
-	_, err := s.battleRepo.DeleteByUser(ctx, guildID, userID)
+	account, err := s.accountRepo.GetByUser(ctx, guildID, userID)
 	if err != nil {
 		return 0, err
 	}
-	return s.accountRepo.DeleteByUser(ctx, guildID, userID)
+	affected, err := s.accountRepo.DeleteByUser(ctx, guildID, userID)
+	if err != nil {
+		return 0, err
+	}
+	if account == nil || account.FighterID == "" || s.friendRepo == nil || s.battleRepo == nil {
+		return affected, nil
+	}
+	owner, err := s.accountRepo.GetByFighter(ctx, guildID, account.FighterID)
+	if err != nil {
+		return affected, err
+	}
+	if owner != nil {
+		return affected, nil
+	}
+	exists, err := s.friendRepo.ExistsByFighter(ctx, guildID, account.FighterID)
+	if err != nil {
+		return affected, err
+	}
+	if !exists {
+		_, err = s.battleRepo.MarkOwnerKindUnlinkedBySubject(ctx, guildID, account.FighterID)
+		if err != nil {
+			return affected, err
+		}
+	}
+	return affected, nil
 }
 
 func (s *sf6AccountService) GetByUser(ctx context.Context, guildID, userID string) (*domain.SF6Account, error) {

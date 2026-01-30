@@ -20,6 +20,7 @@ func RunSF6Poller(
 	maxPages int,
 	accountDelayMax time.Duration,
 	accountRepo repository.SF6AccountRepository,
+	friendRepo repository.SF6FriendRepository,
 	sf6Service SF6Service,
 	logger PollLogger,
 ) {
@@ -27,7 +28,7 @@ func RunSF6Poller(
 		return
 	}
 	logger.Infof("sf6 poller start: interval=%s max_pages=%d account_delay_max=%s", interval, maxPages, accountDelayMax)
-	runSF6PollOnce(ctx, maxPages, accountDelayMax, accountRepo, sf6Service, logger)
+	runSF6PollOnce(ctx, maxPages, accountDelayMax, accountRepo, friendRepo, sf6Service, logger)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -35,7 +36,7 @@ func RunSF6Poller(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runSF6PollOnce(ctx, maxPages, accountDelayMax, accountRepo, sf6Service, logger)
+			runSF6PollOnce(ctx, maxPages, accountDelayMax, accountRepo, friendRepo, sf6Service, logger)
 		}
 	}
 }
@@ -45,6 +46,7 @@ func runSF6PollOnce(
 	maxPages int,
 	accountDelayMax time.Duration,
 	accountRepo repository.SF6AccountRepository,
+	friendRepo repository.SF6FriendRepository,
 	sf6Service SF6Service,
 	logger PollLogger,
 ) {
@@ -78,6 +80,41 @@ func runSF6PollOnce(
 			}
 		}
 		logger.Infof("sf6 poll done: guild=%s user=%s saved=%d", account.GuildID, account.UserID, totalSaved)
+		if friendRepo != nil {
+			friends, err := friendRepo.List(ctx, account.GuildID, account.UserID)
+			if err != nil {
+				logger.Error("sf6 poll friend list: ", err)
+			} else {
+				for _, friend := range friends {
+					if owner, err := accountRepo.GetByFighter(ctx, account.GuildID, friend.FighterID); err != nil {
+						logger.Error("sf6 poll friend owner lookup: ", err)
+						continue
+					} else if owner != nil {
+						continue
+					}
+					friendSaved := 0
+					for page := 1; page <= maxPages; page++ {
+						count, allExisting, err := sf6Service.FetchAndStoreCustomBattles(
+							ctx,
+							account.GuildID,
+							account.UserID,
+							friend.FighterID,
+							page,
+						)
+						if err != nil {
+							logger.Error("sf6 poll friend fetch: ", err)
+							break
+						}
+						friendSaved += count
+						if allExisting {
+							break
+						}
+					}
+					logger.Infof("sf6 poll friend done: guild=%s user=%s friend=%s saved=%d", account.GuildID, account.UserID, friend.FighterID, friendSaved)
+					jitterSleep(ctx, rng, accountDelayMax)
+				}
+			}
+		}
 		jitterSleep(ctx, rng, accountDelayMax)
 	}
 }

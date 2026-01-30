@@ -49,6 +49,14 @@ func Commands() []*discordgo.ApplicationCommand {
 			}(),
 		},
 		{
+			Name:        "sf6_friend",
+			Description: "Show SF6 friend list and controls.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+		},
+		{
 			Name:        "anon",
 			Description: "Post anonymously in this channel.",
 			DMPermission: func() *bool {

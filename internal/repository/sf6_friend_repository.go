@@ -11,6 +11,7 @@ type SF6FriendRepository interface {
 	Upsert(ctx context.Context, friend domain.SF6Friend) error
 	Delete(ctx context.Context, guildID, userID, fighterID string) error
 	List(ctx context.Context, guildID, userID string) ([]domain.SF6Friend, error)
+	ExistsByFighter(ctx context.Context, guildID, fighterID string) (bool, error)
 }
 
 type sf6FriendRepository struct {
@@ -82,4 +83,22 @@ func (r *sf6FriendRepository) List(ctx context.Context, guildID, userID string) 
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *sf6FriendRepository) ExistsByFighter(ctx context.Context, guildID, fighterID string) (bool, error) {
+	if guildID == "" || fighterID == "" {
+		return false, errors.New("guildID and fighterID are required")
+	}
+	row := r.db.QueryRowContext(ctx,
+		`SELECT 1 FROM sf6_friends WHERE guild_id = $1 AND fighter_id = $2 LIMIT 1`,
+		guildID, fighterID,
+	)
+	var dummy int
+	if err := row.Scan(&dummy); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

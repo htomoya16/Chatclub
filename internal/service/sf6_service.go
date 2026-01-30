@@ -25,15 +25,31 @@ type SF6Service interface {
 type sf6Service struct {
 	bucklerClient BucklerClient
 	battleRepo    repository.SF6BattleRepository
+	accountRepo   repository.SF6AccountRepository
 }
 
-func NewSF6Service(bucklerClient BucklerClient, battleRepo repository.SF6BattleRepository) SF6Service {
-	return &sf6Service{bucklerClient: bucklerClient, battleRepo: battleRepo}
+func NewSF6Service(bucklerClient BucklerClient, battleRepo repository.SF6BattleRepository, accountRepo repository.SF6AccountRepository) SF6Service {
+	return &sf6Service{bucklerClient: bucklerClient, battleRepo: battleRepo, accountRepo: accountRepo}
 }
 
 func (s *sf6Service) FetchAndStoreCustomBattles(ctx context.Context, guildID, userID, sid string, page int) (int, bool, error) {
 	if guildID == "" || userID == "" || sid == "" {
 		return 0, false, errors.New("guildID, userID, sid are required")
+	}
+	ownerKind := "account"
+	if s.accountRepo != nil {
+		owner, err := s.accountRepo.GetByFighter(ctx, guildID, sid)
+		if err != nil {
+			return 0, false, err
+		}
+		if owner != nil {
+			if owner.UserID != userID {
+				return 0, true, nil
+			}
+			ownerKind = "account"
+		} else {
+			ownerKind = "friend"
+		}
 	}
 	res, err := s.bucklerClient.FetchCustomBattlelog(ctx, sid, page)
 	if err != nil {
@@ -41,7 +57,7 @@ func (s *sf6Service) FetchAndStoreCustomBattles(ctx context.Context, guildID, us
 	}
 	battles := make([]domain.SF6Battle, 0, len(res.PageProps.ReplayList))
 	for _, entry := range res.PageProps.ReplayList {
-		battle, ok := buildBattleFromReplay(guildID, userID, sid, entry)
+		battle, ok := buildBattleFromReplay(guildID, userID, sid, ownerKind, entry)
 		if !ok {
 			continue
 		}
@@ -75,7 +91,7 @@ func (s *sf6Service) FetchCard(ctx context.Context, sid string) (buckler.CardRes
 	return s.bucklerClient.FetchCard(ctx, sid)
 }
 
-func buildBattleFromReplay(guildID, userID, sid string, entry buckler.ReplayEntry) (domain.SF6Battle, bool) {
+func buildBattleFromReplay(guildID, userID, sid, ownerKind string, entry buckler.ReplayEntry) (domain.SF6Battle, bool) {
 	selfSID, err := strconv.ParseInt(sid, 10, 64)
 	if err != nil {
 		return domain.SF6Battle{}, false
@@ -124,6 +140,7 @@ func buildBattleFromReplay(guildID, userID, sid string, entry buckler.ReplayEntr
 	return domain.SF6Battle{
 		GuildID:           guildID,
 		UserID:            userID,
+		OwnerKind:         ownerKind,
 		SubjectFighterID:  strconv.FormatInt(self.Player.ShortID, 10),
 		OpponentFighterID: strconv.FormatInt(oppo.Player.ShortID, 10),
 		BattleAt:          battleAt,

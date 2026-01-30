@@ -9,6 +9,7 @@ type SF6Battle struct {
 	ID                string
 	GuildID           string
 	UserID            string
+	OwnerKind         string
 	SubjectFighterID  string
 	OpponentFighterID string
 	BattleAt          time.Time

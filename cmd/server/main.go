@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -44,14 +45,16 @@ func main() {
 	anonService := service.NewAnonymousChannelService(anonRepo)
 	sf6AccountRepo := repository.NewSF6AccountRepository(db)
 	sf6BattleRepo := repository.NewSF6BattleRepository(db)
-	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6BattleRepo)
+	sf6FriendRepo := repository.NewSF6FriendRepository(db)
+	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6FriendRepo, sf6BattleRepo)
+	sf6FriendService := service.NewSF6FriendService(sf6FriendRepo, sf6AccountRepo, sf6BattleRepo)
 	var sf6Service service.SF6Service
 	if cfg, err := buckler.LoadConfigFromEnv(); err != nil {
 		e.Logger.Warn("buckler config missing: sf6 commands disabled: ", err)
 	} else if bclient, err := buckler.NewClient(cfg); err != nil {
 		e.Logger.Error("buckler client init failed: ", err)
 	} else {
-		sf6Service = service.NewSF6Service(bclient, sf6BattleRepo)
+		sf6Service = service.NewSF6Service(bclient, sf6BattleRepo, sf6AccountRepo)
 	}
 
 	// ミドルウェア
@@ -127,7 +130,7 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter(anonService, sf6AccountService, sf6Service)
+		router := discord.NewRouter(anonService, sf6AccountService, sf6FriendService, sf6Service)
 		dSession.AddHandler(router.HandleInteraction)
 		dSession.AddHandler(router.HandleMessageCreate)
 
@@ -140,12 +143,13 @@ func main() {
 				return
 			}
 
-			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 5*time.Second)
+			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancelCmd()
 
-			if err := dSession.RegisterCommands(ctxCmd, discordAppID, discordGuildID); err != nil {
-				errCh <- fmt.Errorf("discord register commands: %w", err)
-				return
+			if envBool("DISCORD_REGISTER_COMMANDS", false) {
+				if err := dSession.RegisterCommands(ctxCmd, discordAppID, discordGuildID); err != nil {
+					e.Logger.Warnf("discord register commands failed: %v", err)
+				}
 			}
 
 			fmt.Printf("startup complete: http=:%s, discord=online\n", port)
@@ -162,7 +166,7 @@ func main() {
 		pollInterval := envDuration("SF6_POLL_INTERVAL", 4*time.Hour)
 		maxPages := envInt("SF6_POLL_MAX_PAGES", 10)
 		accountDelayMax := envDuration("SF6_POLL_ACCOUNT_DELAY_MAX", 3*time.Second)
-		go service.RunSF6Poller(ctx, pollInterval, maxPages, accountDelayMax, sf6AccountRepo, sf6Service, e.Logger)
+		go service.RunSF6Poller(ctx, pollInterval, maxPages, accountDelayMax, sf6AccountRepo, sf6FriendRepo, sf6Service, e.Logger)
 	} else {
 		fmt.Printf("sf6 poller disabled: sf6Service is nil (check CAPCOM_EMAIL/CAPCOM_PASSWORD and Buckler config)")
 	}
@@ -233,4 +237,12 @@ func envInt(key string, def int) int {
 		return def
 	}
 	return parsed
+}
+
+func envBool(key string, def bool) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if val == "" {
+		return def
+	}
+	return val == "1" || val == "true" || val == "yes"
 }
