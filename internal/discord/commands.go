@@ -11,6 +11,50 @@ func Commands() []*discordgo.ApplicationCommand {
 			Description: "Check if the bot is alive.",
 		},
 		{
+			Name:        "sf6_link",
+			Description: "Link your SF6 user code (sid).",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "user_code",
+					Description: "SF6 user code (sid)",
+					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "display_name",
+					Description: "Display name (optional)",
+					Required:    false,
+				},
+			},
+		},
+		{
+			Name:        "sf6_fetch",
+			Description: "Fetch and store SF6 battle log.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "user_code",
+					Description: "SF6 user code (sid)",
+					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionInteger,
+					Name:        "page",
+					Description: "Page number (optional)",
+					Required:    false,
+				},
+			},
+		},
+		{
 			Name:        "anon",
 			Description: "Post anonymously in this channel.",
 			DMPermission: func() *bool {

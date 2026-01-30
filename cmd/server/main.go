@@ -3,6 +3,7 @@ package main
 import (
 	"backend/database"
 	"backend/internal/api"
+	"backend/internal/buckler"
 	"backend/internal/discord"
 	"backend/internal/repository"
 	"backend/internal/service"
@@ -31,11 +32,22 @@ func main() {
 	healthSevice := service.NewHealthService(healthRepo)
 	healthHandler := api.NewHealthHandler(healthSevice)
 
-	anonRepo := repository.NewAnonymousChannelRepository(db)
-	anonService := service.NewAnonymousChannelService(anonRepo)
-
 	// Echo インスタンスを作成
 	e := echo.New()
+
+	anonRepo := repository.NewAnonymousChannelRepository(db)
+	anonService := service.NewAnonymousChannelService(anonRepo)
+	sf6AccountRepo := repository.NewSF6AccountRepository(db)
+	sf6BattleRepo := repository.NewSF6BattleRepository(db)
+	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6BattleRepo)
+	var sf6Service service.SF6Service
+	if cfg, err := buckler.LoadConfigFromEnv(); err != nil {
+		e.Logger.Warn("buckler config missing: sf6 commands disabled")
+	} else if bclient, err := buckler.NewClient(cfg); err != nil {
+		e.Logger.Error("buckler client init failed: ", err)
+	} else {
+		sf6Service = service.NewSF6Service(bclient, sf6BattleRepo)
+	}
 
 	// ミドルウェア
 	// 起動時のASCIIバナーを消す
@@ -110,7 +122,7 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter(anonService)
+		router := discord.NewRouter(anonService, sf6AccountService, sf6Service)
 		dSession.AddHandler(router.HandleInteraction)
 		dSession.AddHandler(router.HandleMessageCreate)
 

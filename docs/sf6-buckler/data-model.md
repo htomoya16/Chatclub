@@ -16,7 +16,7 @@ Discord ユーザと CFN アカウントの紐づけ。
 | id | uuid | primary key |
 | guild_id | text | Discord Guild ID |
 | user_id | text | Discord User ID |
-| fighter_id | text | Buckler の short_id（sid） |
+| fighter_id | text | Buckler の short_id（sid（ユーザーコード）） |
 | display_name | text | Buckler の fighter_id（表示名, 任意） |
 | status | text | active / inactive |
 | created_at | timestamptz | created time (UTC) |
@@ -38,7 +38,7 @@ Constraints:
 | id | uuid | primary key |
 | guild_id | text | Discord Guild ID |
 | user_id | text | Discord User ID（登録者） |
-| fighter_id | text | Buckler の short_id（sid） |
+| fighter_id | text | Buckler の short_id（sid（ユーザーコード）） |
 | display_name | text | Buckler の fighter_id（表示名, 任意） |
 | alias | text | 別名（任意） |
 | created_at | timestamptz | created time (UTC) |
@@ -59,7 +59,8 @@ Constraints:
 | id | uuid | primary key |
 | guild_id | text | Discord Guild ID |
 | user_id | text | Discord User ID |
-| opponent_fighter_id | text | 友達の short_id（sid） |
+| subject_fighter_id | text | 対象ユーザーの short_id（sid（ユーザーコード）） |
+| opponent_fighter_id | text | 友達の short_id（sid（ユーザーコード）） |
 | status | text | active / ended |
 | started_at | timestamptz | セッション開始時刻 (UTC) |
 | ended_at | timestamptz | セッション終了時刻 (UTC, nullable) |
@@ -84,14 +85,13 @@ Constraints:
 | id | uuid | primary key |
 | guild_id | text | Discord Guild ID |
 | user_id | text | Discord User ID |
-| opponent_fighter_id | text | 友達の short_id（sid） |
+| opponent_fighter_id | text | 友達の short_id（sid（ユーザーコード）） |
 | battle_at | timestamptz | 試合時刻 (UTC) |
 | result | text | win / loss / draw |
 | self_character | text | 自キャラ |
 | opponent_character | text | 相手キャラ |
 | round_wins | int | 自分のラウンド数（round_results の >0 数） |
 | round_losses | int | 相手のラウンド数（round_results の >0 数） |
-| source_battle_id | text | Buckler 側の試合 ID（replay_id） |
 | source_key | text | 重複排除用のユニークキー |
 | session_id | uuid | sf6_sessions.id (nullable) |
 | raw_payload | jsonb | 取得データの原文 (任意) |
@@ -100,7 +100,7 @@ Constraints:
 
 Constraints:
 
-- unique (guild_id, user_id, source_key)
+- unique (guild_id, subject_fighter_id, source_key)
 - index (guild_id, user_id, opponent_fighter_id, battle_at)
 - index (guild_id, user_id, battle_at)
 
@@ -108,10 +108,10 @@ Constraints:
 
 ## 2. 重複排除の考え方
 
-- Buckler の Battle Log に **replay_id** が存在するため `source_battle_id` に利用する
-- 試合 ID が無い場合は以下を結合して `source_key` を生成する
+- Buckler の Battle Log に **replay_id** が存在するため `source_key` に利用する
+- replay_id が無い場合は以下を結合して `source_key` を生成する
   - battle_at（秒精度）
-  - 自分 / 相手の short_id（sid）
+  - 自分 / 相手の short_id（sid（ユーザーコード））
   - 自キャラ / 相手キャラ
   - 勝敗
 - `source_key` は **安定した文字列**で生成し、ユニーク制約で重複排除する
@@ -123,4 +123,5 @@ Constraints:
 - DB 保存は **UTC 固定**
 - Battle Log の構造は変更される可能性があるため `raw_payload` を保持可能にする
 - セッション関連の集計は `sf6_sessions` に紐づけて行う
-- 本ドキュメントの fighter_id は **Buckler の short_id（sid）** を指す
+- 本ドキュメントの fighter_id は **Buckler の short_id（sid（ユーザーコード））** を指す
+- 追跡対象が `sf6_accounts` に登録された場合は、`subject_fighter_id` で過去ログの所有者（user_id）を付け替える

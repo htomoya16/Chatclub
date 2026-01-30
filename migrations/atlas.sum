@@ -1,2 +1,5 @@
-h1:YDUbrX5p/QOtopOgh9dEjTJbvqWiD6Mx1VWmDsoC3UE=
+h1:i3GBh1EIkVllca2rKAY20l3Z51L1FdXhKHk4Vkh6oFQ=
 20260122113554_add_core_and_anonymous.sql h1:PAwQPOVvsiHHQ0q9f54in4jKCuW1u/MjOXR4dX3LXVc=
+20260130020009_add_sf6_buckler.sql h1:qB83TRUBurX+bxJ7PXewEmUFxWx4b+SJFlYLCpz8pMs=
+20260130035346_add_subject_fighter_id.sql h1:5GltzL67wr67aFIjCwqaaPdTk7TYTOQSdd6v01Zskig=
+20260130042000_drop_sf6_source_battle_id.sql h1:Dti+7OQW9JThms22bSVp1Jm8CWvo/MhZGSUPQ30gWUs=

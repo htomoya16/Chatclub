@@ -11,7 +11,21 @@
 3. 403/ログイン要求などの失効兆候が出たら再ログインする
 4. 再ログイン失敗時は収集を停止し、管理者に通知する
 
-### 0.1 HTTPログインフロー（直叩き）
+### 0.1 Buckler loginep 経由フロー（推奨）
+
+1. `GET /6/buckler/_next/data/{buildId}/ja-jp/auth/loginep.json?redirect_url=/`
+2. レスポンス `pageProps.__N_REDIRECT` の URL（`cid.capcom.com/service/auth?...`）へ遷移
+3. `https://auth.cid.capcom.com/authorize?...` にリダイレクトされる
+4. `https://www.streetfighter.com/6/buckler/auth/login?code=***&state=***`
+5. `GET /6/buckler/ja-jp/auth/postlogin` → `/6/buckler/ja-jp/?status=login`
+6. ここまで到達すると `buckler_id` / `buckler_r_id` が発行・更新される
+
+**成功判定**
+
+- `/6/buckler/_next/data/.../profile/{sid}/battlelog/custom.json` が **200**（sid＝ユーザーコード）
+- CookieJar に `buckler_id` と `buckler_r_id` が存在
+
+### 0.2 HTTPログインフロー（Auth0直叩き / フォールバック）
 
 1. `GET https://auth.cid.capcom.com/login?...` でログインページを取得
 2. `POST /usernamepassword/challenge`（JSON: `state`）
@@ -23,11 +37,18 @@
    - ここで `buckler_id` / `buckler_r_id` が発行される
 8. `GET /6/buckler/ja-jp/auth/postlogin` → `/6/buckler/ja-jp/?status=login`
 
-### 0.2 Cookie運用
+### 0.3 Cookie運用
 
 - 必須Cookie: `buckler_id` / `buckler_r_id`
 - Cookieは暗号化して保存し、失効時は再ログインで更新する
 - 2FA/CAPTCHAなしを前提（有効化された場合は自動ログイン不可）
+- `buckler_id` は `loginep` で仮発行 → `/auth/login` で上書きされることがある
+
+### 0.4 buildId 取得と注意点
+
+- buildId は `/_next/data/{buildId}/...` の URL 生成に必須
+- Buckler トップ（`/6/buckler/ja-jp`）から HTML を取得して `buildId` を抽出する
+- `/ja-jp/` に 308 が返ることがあるため **Location を追って本文を取得**する
 
 ---
 
@@ -45,7 +66,7 @@
 1. スケジューラが **一定間隔**で Buckler Battle Log を取得
 2. buildId をキャッシュから取得し、無ければ HTML から抽出
 3. buildId で data API を呼び出す
-   - `/6/buckler/_next/data/{buildId}/ja-jp/profile/{sid}/battlelog/custom.json?sid={sid}&page={page}`
+   - `/6/buckler/_next/data/{buildId}/ja-jp/profile/{sid}/battlelog/custom.json?sid={sid}&page={page}`（sid＝ユーザーコード）
    - ページサイズは 10 件、`page` クエリでページング
 4. 404/410 が返ったら buildId を再取得して再試行
 5. 直近 N 件になるまでページを進めて `replay_list` を収集
@@ -58,7 +79,7 @@
 
 - 取得間隔は Buckler の負荷と Discord 通知の要件で調整する
 - 連続失敗時は指数バックオフする
-- 自分/相手の判定は `pageProps.sid` と `player*.player.short_id` を突き合わせる
+- 自分/相手の判定は `pageProps.sid`（ユーザーコード）と `player*.player.short_id` を突き合わせる
 - buildId は一定期間ごとに再取得してもよい（例: 1日1回）
 
 ---

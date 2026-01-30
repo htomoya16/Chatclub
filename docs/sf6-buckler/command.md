@@ -2,7 +2,7 @@
 
 本ドキュメントは、Buckler 対戦ログ機能の Discord コマンド仕様を定義する。
 
-補足: 本ドキュメントの fighter_id は **Buckler プロフィールの short_id（sid）** を指す。
+補足: 本ドキュメントの fighter_id は **Buckler プロフィールの short_id（sid（ユーザーコード））** を指す。
 
 ---
 
@@ -10,8 +10,8 @@
 
 ### /sf6_link
 
-- 概要: 自分の Buckler short_id（sid）を登録する
-- 入力: fighter_id（sid）, display_name (optional)
+- 概要: 自分の Buckler short_id（sid（ユーザーコード））を登録する
+- 入力: fighter_id（sid（ユーザーコード））, display_name (optional)
 - 出力: 登録完了メッセージ
 
 ### /sf6_unlink
@@ -26,13 +26,13 @@
 ### /sf6_friend add
 
 - 概要: 対戦相手を登録する
-- 入力: fighter_id（sid）, alias (optional)
+- 入力: fighter_id（sid（ユーザーコード））, alias (optional)
 - 出力: 登録完了メッセージ
 
 ### /sf6_friend remove
 
 - 概要: 対戦相手を削除する
-- 入力: fighter_id（sid） または alias
+- 入力: fighter_id（sid（ユーザーコード）） または alias
 - 出力: 削除完了メッセージ
 
 ### /sf6_friend list
@@ -47,7 +47,7 @@
 ### /watch_start
 
 - 概要: 指定した友達とのセッション監視を開始する
-- 入力: opponent（fighter_id / sid または alias）
+- 入力: opponent（fighter_id / sid（ユーザーコード） または alias）
 - 出力: 監視開始メッセージ
 
 ### /watch_end

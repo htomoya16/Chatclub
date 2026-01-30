@@ -45,6 +45,17 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
       PORT: ${APP_PORT:-8080}
+      CAPCOM_EMAIL: ${CAPCOM_EMAIL}
+      CAPCOM_PASSWORD: ${CAPCOM_PASSWORD}
+      BUCKLER_COOKIE_ENC_KEY: ${BUCKLER_COOKIE_ENC_KEY}
+      BUCKLER_LANG: ${BUCKLER_LANG:-ja-jp}
+      BUCKLER_BASE_URL: ${BUCKLER_BASE_URL:-https://www.streetfighter.com/6/buckler}
+      BUCKLER_CLIENT_ID: ${BUCKLER_CLIENT_ID}
+      BUCKLER_REDIRECT_URI: ${BUCKLER_REDIRECT_URI:-https://www.streetfighter.com/6/buckler/auth/login}
+      BUCKLER_SCOPE: ${BUCKLER_SCOPE:-openid}
+      BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
+      BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
+      BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
     ports:
       - "${APP_PORT:-8080}:8080"
     networks: [chatclub_network]
@@ -69,6 +80,17 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
       PORT: ${APP_PORT:-8080}
+      CAPCOM_EMAIL: ${CAPCOM_EMAIL}
+      CAPCOM_PASSWORD: ${CAPCOM_PASSWORD}
+      BUCKLER_COOKIE_ENC_KEY: ${BUCKLER_COOKIE_ENC_KEY}
+      BUCKLER_LANG: ${BUCKLER_LANG:-ja-jp}
+      BUCKLER_BASE_URL: ${BUCKLER_BASE_URL:-https://www.streetfighter.com/6/buckler}
+      BUCKLER_CLIENT_ID: ${BUCKLER_CLIENT_ID}
+      BUCKLER_REDIRECT_URI: ${BUCKLER_REDIRECT_URI:-https://www.streetfighter.com/6/buckler/auth/login}
+      BUCKLER_SCOPE: ${BUCKLER_SCOPE:-openid}
+      BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
+      BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
+      BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
     ports:
       - "${APP_PORT:-8080}:8080"
     # airに必要 ボリュームをマウント

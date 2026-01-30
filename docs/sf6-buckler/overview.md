@@ -25,13 +25,13 @@ Discord で勝率・傾向・セッション単位の統計を可視化するた
 
 - Buckler は **Next.js の data API** から JSON を返す
 - Custom の取得先は以下（`buildId` は HTML の `__NEXT_DATA__.buildId` から抽出）
-  - `/6/buckler/_next/data/{buildId}/ja-jp/profile/{sid}/battlelog/custom.json?sid={sid}&page={page}`
+- `/6/buckler/_next/data/{buildId}/ja-jp/profile/{sid}/battlelog/custom.json?sid={sid}&page={page}`（sid＝ユーザーコード）
 - 実データは `pageProps.replay_list`
 - ページングは `page` クエリ、1ページ 10 件
 - 認証はログイン済み Cookie に依存する（`buckler_id` / `buckler_r_id` など）
 - buildId は更新で変わるため **キャッシュ + 失効時再取得**を行う
 - 自動ログインで Cookie を更新する（失効時は再ログイン）
-- プレイヤーIDは `player.*.short_id`（`sid`）、表示名は `player.*.fighter_id`
+- プレイヤーIDは `player.*.short_id`（`sid`（ユーザーコード））、表示名は `player.*.fighter_id`
 
 ---
 
