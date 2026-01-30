@@ -7,6 +7,8 @@ import (
 	"golang.org/x/net/html"
 )
 
+// findLoginCallbackForm はログイン後のHTMLから /login/callback のフォームを探す。
+// hidden input を集めて POST 用のフィールドとして返す。
 func findLoginCallbackForm(body []byte) (string, map[string]string) {
 	if len(body) == 0 {
 		return "", nil

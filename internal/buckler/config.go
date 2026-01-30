@@ -3,10 +3,11 @@ package buckler
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
-// Config holds runtime settings for Buckler access and login.
+// Config は Buckler 取得・ログインのための設定をまとめた構造体。
 type Config struct {
 	Email           string
 	Password        string
@@ -24,11 +25,18 @@ type Config struct {
 	UILocales       string
 	ShowSignUp      string
 	Audience        string
+	BucklerClientID string
+	BucklerRedirect string
+	BucklerScope    string
+	BucklerAudience string
+	BucklerResponse string
+	Debug           bool
 	BuildIDTTL      time.Duration
 	UserAgent       string
 	CookieEncKeyRaw string
 }
 
+// LoadConfigFromEnv は環境変数から設定を読み込む。
 func LoadConfigFromEnv() (Config, error) {
 	cfg := Config{
 		Email:          os.Getenv("CAPCOM_EMAIL"),
@@ -47,6 +55,12 @@ func LoadConfigFromEnv() (Config, error) {
 		UILocales:      envOrDefault("CAPCOM_UI_LOCALES", "ja"),
 		ShowSignUp:     envOrDefault("CAPCOM_SHOW_SIGN_UP", "0"),
 		Audience:       envOrDefault("CAPCOM_AUDIENCE", "urn:rebe:capcom:apis"),
+		BucklerClientID: os.Getenv("BUCKLER_CLIENT_ID"),
+		BucklerRedirect: envOrDefault("BUCKLER_REDIRECT_URI", "https://www.streetfighter.com/6/buckler/auth/login"),
+		BucklerScope:    envOrDefault("BUCKLER_SCOPE", "openid"),
+		BucklerAudience: envOrDefault("BUCKLER_AUDIENCE", "urn:rebe:capcom:apis"),
+		BucklerResponse: envOrDefault("BUCKLER_RESPONSE_TYPE", "code"),
+		Debug:           envBool("BUCKLER_DEBUG", false),
 		BuildIDTTL:     24 * time.Hour,
 		UserAgent:      envOrDefault("BUCKLER_USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 		CookieEncKeyRaw: os.Getenv("BUCKLER_COOKIE_ENC_KEY"),
@@ -59,9 +73,25 @@ func LoadConfigFromEnv() (Config, error) {
 	return cfg, nil
 }
 
+// envOrDefault は未設定ならデフォルト値を返す。
 func envOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return def
+}
+
+func envBool(key string, def bool) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return def
+	}
 }

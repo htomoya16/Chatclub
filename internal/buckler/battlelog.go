@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// BattlelogResponse is the minimal JSON shape for Buckler battlelog.
+// BattlelogResponse は Buckler battlelog JSON の最小構造。
 type BattlelogResponse struct {
 	PageProps BattlelogPageProps `json:"pageProps"`
 }
@@ -49,6 +49,7 @@ type Player struct {
 	PlatformToolName string `json:"platform_tool_name"`
 }
 
+// RoundWins は round_results の「>0」の個数を勝ちラウンド数として数える。
 func RoundWins(results []int) int {
 	wins := 0
 	for _, v := range results {
@@ -59,6 +60,7 @@ func RoundWins(results []int) int {
 	return wins
 }
 
+// FetchCustomBattlelog は Custom Room の battlelog JSON を取得する。
 func (c *Client) FetchCustomBattlelog(ctx context.Context, sid string, page int) (BattlelogResponse, error) {
 	var res BattlelogResponse
 	if sid == "" {

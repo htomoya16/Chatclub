@@ -13,6 +13,7 @@ type buildIDCache struct {
 	ttl       time.Duration
 }
 
+// newBuildIDCache は buildId のキャッシュを作る。
 func newBuildIDCache(ttl time.Duration) *buildIDCache {
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
@@ -20,6 +21,7 @@ func newBuildIDCache(ttl time.Duration) *buildIDCache {
 	return &buildIDCache{ttl: ttl}
 }
 
+// Get は有効なキャッシュがあれば返す。
 func (c *buildIDCache) Get() (string, bool) {
 	if c.value == "" {
 		return "", false
@@ -30,6 +32,7 @@ func (c *buildIDCache) Get() (string, bool) {
 	return c.value, true
 }
 
+// Set は buildId をキャッシュし、期限を更新する。
 func (c *buildIDCache) Set(value string) {
 	c.value = value
 	c.expiresAt = time.Now().Add(c.ttl)
@@ -37,21 +40,35 @@ func (c *buildIDCache) Set(value string) {
 
 var buildIDPattern = regexp.MustCompile(`"buildId"\s*:\s*"([^"]+)"`)
 
+// FetchBuildID は HTML から buildId を抽出する。
+// sid が無い場合は Buckler トップから取る。
 func (c *Client) FetchBuildID(ctx context.Context, sid string) (string, error) {
 	if v, ok := c.cache.Get(); ok {
 		return v, nil
 	}
 
+	base := c.cfg.BucklerBaseURL + "/" + c.cfg.Lang
+	var htmlURL string
 	if sid == "" {
-		return "", errors.New("sid required")
+		htmlURL = base
+	} else {
+		htmlURL = base + "/profile/" + sid + "/battlelog"
 	}
-
-	htmlURL := c.cfg.BucklerBaseURL + "/" + c.cfg.Lang + "/profile/" + sid + "/battlelog"
-	_, body, err := c.getReturn(ctx, htmlURL)
+	resp, body, err := c.getReturn(ctx, htmlURL)
 	if err != nil {
 		return "", err
 	}
 	matches := buildIDPattern.FindSubmatch(body)
+	if len(matches) < 2 {
+		if loc := getLocation(resp); loc != "" {
+			nextURL := resolveURL(htmlURL, loc)
+			_, body, err = c.getReturn(ctx, nextURL)
+			if err != nil {
+				return "", err
+			}
+			matches = buildIDPattern.FindSubmatch(body)
+		}
+	}
 	if len(matches) < 2 {
 		return "", errors.New("buildId not found")
 	}

@@ -13,12 +13,13 @@ import (
 	"net/url"
 )
 
-// CookieEnvelope is a serializable snapshot of cookies for a base URL.
+// CookieEnvelope はCookieのスナップショットを保存するための構造体。
 type CookieEnvelope struct {
 	URL     string         `json:"url"`
 	Cookies []*http.Cookie `json:"cookies"`
 }
 
+// ExportCookies は指定URLのCookieを取り出す。
 func (c *Client) ExportCookies(rawURL string) (CookieEnvelope, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -28,6 +29,7 @@ func (c *Client) ExportCookies(rawURL string) (CookieEnvelope, error) {
 	return CookieEnvelope{URL: rawURL, Cookies: cookies}, nil
 }
 
+// ImportCookies は保存済みCookieをJarへ復元する。
 func (c *Client) ImportCookies(env CookieEnvelope) error {
 	u, err := url.Parse(env.URL)
 	if err != nil {
@@ -37,6 +39,7 @@ func (c *Client) ImportCookies(env CookieEnvelope) error {
 	return nil
 }
 
+// EncryptEnvelope はCookieをAES-GCMで暗号化して文字列にする。
 func EncryptEnvelope(keyRaw string, env CookieEnvelope) (string, error) {
 	key, err := parseCookieKey(keyRaw)
 	if err != nil {
@@ -62,6 +65,7 @@ func EncryptEnvelope(keyRaw string, env CookieEnvelope) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
+// DecryptEnvelope は暗号化されたCookie文字列を復号する。
 func DecryptEnvelope(keyRaw, blob string) (CookieEnvelope, error) {
 	key, err := parseCookieKey(keyRaw)
 	if err != nil {
@@ -95,6 +99,7 @@ func DecryptEnvelope(keyRaw, blob string) (CookieEnvelope, error) {
 	return env, nil
 }
 
+// parseCookieKey は32バイト鍵（raw/base64/hex）を解釈する。
 func parseCookieKey(raw string) ([]byte, error) {
 	if raw == "" {
 		return nil, errors.New("cookie encryption key missing")
