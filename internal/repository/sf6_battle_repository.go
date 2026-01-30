@@ -14,6 +14,7 @@ type SF6BattleRepository interface {
 	BulkUpsert(ctx context.Context, battles []domain.SF6Battle) (int, error)
 	ReassignOwnerBySubject(ctx context.Context, guildID, subjectFighterID, newUserID string) (int64, error)
 	ExistingSourceKeys(ctx context.Context, guildID, subjectFighterID string, keys []string) (map[string]struct{}, error)
+	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
 
 type sf6BattleRepository struct {
@@ -195,6 +196,27 @@ func (r *sf6BattleRepository) ExistingSourceKeys(ctx context.Context, guildID, s
 		return nil, err
 	}
 	return exists, nil
+}
+
+func (r *sf6BattleRepository) DeleteByUser(ctx context.Context, guildID, userID string) (int64, error) {
+	if guildID == "" || userID == "" {
+		return 0, errors.New("guildID and userID are required")
+	}
+	if err := ensureGuildAndUser(ctx, r.db, guildID, userID); err != nil {
+		return 0, err
+	}
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM sf6_battles WHERE guild_id = $1 AND user_id = $2`,
+		guildID, userID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
 }
 
 func uniqueStrings(values []string) []string {

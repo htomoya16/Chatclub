@@ -12,6 +12,7 @@ type SF6AccountRepository interface {
 	GetByUser(ctx context.Context, guildID, userID string) (*domain.SF6Account, error)
 	GetByFighter(ctx context.Context, guildID, fighterID string) (*domain.SF6Account, error)
 	ListActive(ctx context.Context) ([]domain.SF6Account, error)
+	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
 
 type sf6AccountRepository struct {
@@ -114,4 +115,25 @@ func (r *sf6AccountRepository) ListActive(ctx context.Context) ([]domain.SF6Acco
 		return nil, err
 	}
 	return accounts, nil
+}
+
+func (r *sf6AccountRepository) DeleteByUser(ctx context.Context, guildID, userID string) (int64, error) {
+	if guildID == "" || userID == "" {
+		return 0, errors.New("guildID and userID are required")
+	}
+	if err := ensureGuildAndUser(ctx, r.db, guildID, userID); err != nil {
+		return 0, err
+	}
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM sf6_accounts WHERE guild_id = $1 AND user_id = $2`,
+		guildID, userID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
 }

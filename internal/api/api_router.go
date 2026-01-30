@@ -7,7 +7,8 @@ import (
 func SetupRoutes(
 	// 引数
 	e *echo.Echo,
-	healthHandler *HealthHandler) {
+	healthHandler *HealthHandler,
+	sf6AssetHandler *SF6AssetHandler) {
 
 	api := e.Group("/api")
 
@@ -15,4 +16,5 @@ func SetupRoutes(
 	api.GET("/livez", healthHandler.Livez)
 	api.GET("/readyz", healthHandler.Readyz)
 	api.GET("/healthz", healthHandler.Healthz)
+	api.GET("/sf6/character/:tool", sf6AssetHandler.CharacterImage)
 }

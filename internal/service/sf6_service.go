@@ -14,10 +14,12 @@ import (
 
 type BucklerClient interface {
 	FetchCustomBattlelog(ctx context.Context, sid string, page int) (buckler.BattlelogResponse, error)
+	FetchCard(ctx context.Context, sid string) (buckler.CardResponse, error)
 }
 
 type SF6Service interface {
 	FetchAndStoreCustomBattles(ctx context.Context, guildID, userID, sid string, page int) (int, bool, error)
+	FetchCard(ctx context.Context, sid string) (buckler.CardResponse, error)
 }
 
 type sf6Service struct {
@@ -64,6 +66,13 @@ func (s *sf6Service) FetchAndStoreCustomBattles(ctx context.Context, guildID, us
 		return 0, false, err
 	}
 	return count, false, nil
+}
+
+func (s *sf6Service) FetchCard(ctx context.Context, sid string) (buckler.CardResponse, error) {
+	if sid == "" {
+		return buckler.CardResponse{}, errors.New("sid is required")
+	}
+	return s.bucklerClient.FetchCard(ctx, sid)
 }
 
 func buildBattleFromReplay(guildID, userID, sid string, entry buckler.ReplayEntry) (domain.SF6Battle, bool) {

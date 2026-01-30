@@ -11,20 +11,12 @@ func Commands() []*discordgo.ApplicationCommand {
 			Description: "Check if the bot is alive.",
 		},
 		{
-			Name:        "sf6_link",
-			Description: "Link your SF6 user code (sid).",
+			Name:        "sf6_account",
+			Description: "Show SF6 account status and controls.",
 			DMPermission: func() *bool {
 				v := false
 				return &v
 			}(),
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "user_code",
-					Description: "SF6 user code (sid)",
-					Required:    true,
-				},
-			},
 		},
 		{
 			Name:        "sf6_fetch",
@@ -47,6 +39,14 @@ func Commands() []*discordgo.ApplicationCommand {
 					Required:    false,
 				},
 			},
+		},
+		{
+			Name:        "sf6_unlink",
+			Description: "Unlink your SF6 account.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
 		},
 		{
 			Name:        "anon",

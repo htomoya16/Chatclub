@@ -33,6 +33,7 @@ func main() {
 	healthRepo := repository.NewHealthRepository(db)
 	healthSevice := service.NewHealthService(healthRepo)
 	healthHandler := api.NewHealthHandler(healthSevice)
+	sf6AssetHandler := api.NewSF6AssetHandler()
 
 	// Echo インスタンスを作成
 	e := echo.New()
@@ -66,7 +67,7 @@ func main() {
 	)
 
 	// ルート設定
-	api.SetupRoutes(e, healthHandler)
+	api.SetupRoutes(e, healthHandler, sf6AssetHandler)
 
 	// ポート設定
 	port := os.Getenv("PORT")
