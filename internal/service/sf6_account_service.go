@@ -11,6 +11,7 @@ type SF6AccountService interface {
 	UpsertAndReassign(ctx context.Context, account domain.SF6Account) (int64, error)
 	Unlink(ctx context.Context, guildID, userID string) (int64, error)
 	GetByUser(ctx context.Context, guildID, userID string) (*domain.SF6Account, error)
+	GetByFighter(ctx context.Context, guildID, fighterID string) (*domain.SF6Account, error)
 	ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Account, error)
 }
 
@@ -74,6 +75,13 @@ func (s *sf6AccountService) GetByUser(ctx context.Context, guildID, userID strin
 		return nil, errors.New("guildID and userID are required")
 	}
 	return s.accountRepo.GetByUser(ctx, guildID, userID)
+}
+
+func (s *sf6AccountService) GetByFighter(ctx context.Context, guildID, fighterID string) (*domain.SF6Account, error) {
+	if guildID == "" || fighterID == "" {
+		return nil, errors.New("guildID and fighterID are required")
+	}
+	return s.accountRepo.GetByFighter(ctx, guildID, fighterID)
 }
 
 func (s *sf6AccountService) ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Account, error) {

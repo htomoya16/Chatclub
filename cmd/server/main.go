@@ -46,8 +46,10 @@ func main() {
 	sf6AccountRepo := repository.NewSF6AccountRepository(db)
 	sf6BattleRepo := repository.NewSF6BattleRepository(db)
 	sf6FriendRepo := repository.NewSF6FriendRepository(db)
+	sf6SessionRepo := repository.NewSF6SessionRepository(db)
 	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6FriendRepo, sf6BattleRepo)
 	sf6FriendService := service.NewSF6FriendService(sf6FriendRepo, sf6AccountRepo, sf6BattleRepo)
+	sf6SessionService := service.NewSF6SessionService(sf6SessionRepo)
 	var sf6Service service.SF6Service
 	if cfg, err := buckler.LoadConfigFromEnv(); err != nil {
 		e.Logger.Warn("buckler config missing: sf6 commands disabled: ", err)
@@ -130,7 +132,7 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter(anonService, sf6AccountService, sf6FriendService, sf6Service)
+	router := discord.NewRouter(anonService, sf6AccountService, sf6FriendService, sf6Service, sf6SessionService)
 		dSession.AddHandler(router.HandleInteraction)
 		dSession.AddHandler(router.HandleMessageCreate)
 

@@ -27,6 +27,120 @@ func Commands() []*discordgo.ApplicationCommand {
 			}(),
 		},
 		{
+			Name:        "sf6_stats",
+			Description: "Show SF6 stats (range/count).",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "range",
+					Description: "Stats by date range (JST).",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "opponent_code",
+							Description: "Opponent SF6 user code (sid)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "from",
+							Description: "Start date (YYYY-MM-DD, JST)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "to",
+							Description: "End date (YYYY-MM-DD, JST)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "subject_code",
+							Description: "Subject SF6 user code (sid)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "count",
+					Description: "Stats by recent N matches.",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "opponent_code",
+							Description: "Opponent SF6 user code (sid)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionInteger,
+							Name:        "count",
+							Description: "Recent match count",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "subject_code",
+							Description: "Subject SF6 user code (sid)",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:        "sf6_session",
+			Description: "Start/end a session and show stats.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "start",
+					Description: "Start a session.",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "opponent_code",
+							Description: "Opponent SF6 user code (sid)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "subject_code",
+							Description: "Subject SF6 user code (sid)",
+							Required:    false,
+						},
+					},
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "end",
+					Description: "End a session and show stats.",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "opponent_code",
+							Description: "Opponent SF6 user code (sid)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "subject_code",
+							Description: "Subject SF6 user code (sid)",
+							Required:    false,
+						},
+					},
+				},
+			},
+		},
+		{
 			Name:        "sf6_unlink",
 			Description: "Unlink your SF6 account.",
 			DMPermission: func() *bool {

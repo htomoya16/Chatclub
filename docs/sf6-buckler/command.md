@@ -4,8 +4,7 @@
 
 現状:
 
-- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`, `/sf6_friend *`
-- 未実装: `/watch_*`, `/sf6_stats`（設計のみ）
+- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`, `/sf6_friend`, `/sf6_stats`, `/sf6_session`
 
 補足: 本ドキュメントの fighter_id は **Buckler プロフィールの short_id（sid（ユーザーコード））** を指す。
 
@@ -23,54 +22,60 @@
 ### /sf6_unlink
 
 - 概要: 連携解除（収集停止）
-- 出力: 解除完了メッセージ（戦績も削除）
+- 出力: 解除完了メッセージ（戦績は保持）
 
 ---
 
 ## 2. 友達（対戦相手）管理
 
-### /sf6_friend add
+### /sf6_friend
 
-- 概要: 対戦相手を登録する
-- 入力: fighter_id（sid（ユーザーコード））, alias (optional)
-- 出力: 登録完了メッセージ
-
-### /sf6_friend remove
-
-- 概要: 対戦相手を削除する
-- 入力: fighter_id（sid（ユーザーコード）） または alias
-- 出力: 削除完了メッセージ
-
-### /sf6_friend list
-
-- 概要: 登録済み友達を一覧する
-- 出力: fighter_id / alias の一覧
+- 概要: 対戦相手一覧と操作ボタンを表示
+- 入力: なし（ボタン押下で追加/削除）
+- 出力: 友達一覧 Embed
 
 ---
 
-## 3. セッション監視
+## 3. セッション統計
 
-### /watch_start
+### /sf6_session start
 
-- 概要: 指定した友達とのセッション監視を開始する
-- 入力: opponent（fighter_id / sid（ユーザーコード） または alias）
-- 出力: 監視開始メッセージ
+- 概要: 対戦セッションを開始（ユーザーごとに1つだけ、再開は上書き）
+- 入力:
+  - opponent_code (sid) 必須
+  - subject_code (sid) 任意（未指定なら連携アカウント）
+- 出力: セッション開始メッセージ
 
-### /watch_end
+### /sf6_session end
 
-- 概要: 監視中セッションを終了する
-- 入力: なし
-- 出力: セッション結果サマリ
+- 概要: 対戦セッションを終了し、期間内の統計を表示
+- 入力:
+  - opponent_code (sid) 必須
+  - subject_code (sid) 任意（未指定なら連携アカウント）
+- 出力: セッション統計（勝率・勝敗・キャラ別）
 
 ---
 
-## 4. 統計表示
+## 4. 統計表示（都度クエリ）
 
-### /sf6_stats
+### /sf6_stats range
 
-- 概要: 戦績統計を表示する
-- 入力: opponent (optional), recent_n (optional), period (optional)
-- 出力: 勝率 / 試合数 / 直近 N 戦 / 連勝・連敗 / キャラ別
+- 概要: 期間指定の統計を表示する（JST）
+- 入力:
+  - opponent_code (sid) 必須
+  - subject_code (sid) 任意（未指定なら連携アカウント）
+  - from (YYYY-MM-DD, JST) 必須
+  - to (YYYY-MM-DD, JST) 必須
+- 出力: 総試合数 / 勝・敗・引き分け / 勝率（分除外）/ キャラ別勝率
+
+### /sf6_stats count
+
+- 概要: 直近 N 戦の統計を表示する
+- 入力:
+  - opponent_code (sid) 必須
+  - subject_code (sid) 任意（未指定なら連携アカウント）
+  - count (N) 必須
+- 出力: 総試合数 / 勝・敗・引き分け / 勝率（分除外）/ キャラ別勝率
 
 ---
 
@@ -78,10 +83,10 @@
 
 ### /sf6_fetch
 
-- 概要: 指定した user_code の Battle Log（Custom）を取得して保存する
-- 入力: user_code（sid（ユーザーコード））, page (optional, default=1)
+- 概要: ギルド内の登録済みアカウント/フレンドの Battle Log（Custom）を取得して保存する（管理者/許可ユーザー限定）
+- 入力: なし
 - 挙動:
-  - 最大 10 ページまで取得
-  - `source_key` が全件既存なら早期終了
-  - 取得は Buckler の data API を使用
-- 出力: 保存件数 / 取得ページ数
+  - アカウントの sid を優先して取得
+  - 同一 sid がフレンド登録されている場合はフレンド側をスキップ
+  - 最大 10 ページまで取得（既存データで早期終了）
+- 出力: 保存件数 / 取得ページ数 / スキップ数

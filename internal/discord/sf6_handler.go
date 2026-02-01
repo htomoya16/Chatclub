@@ -42,104 +42,6 @@ func (r *Router) handleSF6Link(s *discordgo.Session, i *discordgo.InteractionCre
 	followupEphemeralEmbed(s, i, accountEmbed, sf6LinkButtons(linked))
 }
 
-func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
-		return
-	}
-	if r.SF6Service == nil || r.SF6AccountService == nil || r.SF6FriendService == nil {
-		respondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
-		return
-	}
-
-	userID := interactionUserID(i)
-	if userID == "" {
-		respondEphemeral(s, i, "user_idの取得に失敗")
-		return
-	}
-	if !sf6FetchAllowed(i) {
-		respondEphemeral(s, i, "管理者または許可ユーザーのみ実行できます")
-		return
-	}
-
-	if err := deferEphemeral(s, i); err != nil {
-		respondEphemeral(s, i, "受付に失敗しました")
-		return
-	}
-
-	ctx := context.Background()
-	accounts, err := r.SF6AccountService.ListByGuild(ctx, i.GuildID)
-	if err != nil {
-		followupEphemeral(s, i, "取得に失敗: "+err.Error())
-		return
-	}
-	friends, err := r.SF6FriendService.ListByGuild(ctx, i.GuildID)
-	if err != nil {
-		followupEphemeral(s, i, "取得に失敗: "+err.Error())
-		return
-	}
-	if len(accounts) == 0 && len(friends) == 0 {
-		followupEphemeral(s, i, "対象アカウント/フレンドがありません")
-		return
-	}
-
-	accountSIDs := make(map[string]struct{}, len(accounts))
-	for _, acc := range accounts {
-		if acc.FighterID == "" || acc.UserID == "" {
-			continue
-		}
-		accountSIDs[acc.FighterID] = struct{}{}
-	}
-
-	totalSaved := 0
-	pagesFetched := 0
-	accountsFetched := 0
-	friendsFetched := 0
-	skippedFriends := 0
-	fetchErrors := 0
-
-	for _, acc := range accounts {
-		if acc.FighterID == "" || acc.UserID == "" {
-			continue
-		}
-		saved, pages, err := r.initialFetch(ctx, i.GuildID, acc.UserID, acc.FighterID)
-		if err != nil {
-			fetchErrors++
-			continue
-		}
-		accountsFetched++
-		totalSaved += saved
-		pagesFetched += pages
-	}
-
-	seenFriends := make(map[string]struct{}, len(friends))
-	for _, friend := range friends {
-		if friend.FighterID == "" || friend.UserID == "" {
-			continue
-		}
-		if _, ok := accountSIDs[friend.FighterID]; ok {
-			skippedFriends++
-			continue
-		}
-		if _, ok := seenFriends[friend.FighterID]; ok {
-			continue
-		}
-		seenFriends[friend.FighterID] = struct{}{}
-		saved, pages, err := r.initialFetch(ctx, i.GuildID, friend.UserID, friend.FighterID)
-		if err != nil {
-			fetchErrors++
-			continue
-		}
-		friendsFetched++
-		totalSaved += saved
-		pagesFetched += pages
-	}
-
-	msg := fmt.Sprintf("取得完了。accounts=%d friends=%d skipped=%d saved=%d pages=%d errors=%d",
-		accountsFetched, friendsFetched, skippedFriends, totalSaved, pagesFetched, fetchErrors)
-	followupEphemeral(s, i, msg)
-}
-
 func (r *Router) handleSF6Unlink(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
 		respondEphemeral(s, i, "guildのみ対応")
@@ -201,52 +103,64 @@ func interactionUser(i *discordgo.InteractionCreate) *discordgo.User {
 	return nil
 }
 
-func sf6FetchAllowed(i *discordgo.InteractionCreate) bool {
-	userID := interactionUserID(i)
-	if userID == "" {
-		return false
+func (r *Router) resolveSubjectSID(ctx context.Context, guildID, userID, subjectOverride string) (string, error) {
+	if r.SF6AccountService == nil {
+		return "", fmt.Errorf("sf6機能が無効です")
 	}
-	if sf6FetchAllowedUser(userID) {
-		return true
+	account, err := r.SF6AccountService.GetByUser(ctx, guildID, userID)
+	if err != nil {
+		return "", err
 	}
-	if i == nil || i.Member == nil {
-		return false
+	if account == nil || account.FighterID == "" {
+		return "", fmt.Errorf("連携アカウントが必要です")
 	}
-	perms := i.Member.Permissions
-	if perms&discordgo.PermissionAdministrator != 0 {
-		return true
+	subjectOverride = strings.TrimSpace(subjectOverride)
+	if subjectOverride != "" {
+		if sid, _, ok, err := r.resolveSIDFromMention(ctx, guildID, subjectOverride); ok {
+			if err != nil {
+				return "", err
+			}
+			return sid, nil
+		}
+		return subjectOverride, nil
 	}
-	if perms&discordgo.PermissionManageGuild != 0 {
-		return true
-	}
-	return false
+	return account.FighterID, nil
 }
 
-func sf6FetchAllowedUser(userID string) bool {
-	raw := strings.TrimSpace(os.Getenv("SF6_FETCH_ALLOWED_USER_IDS"))
-	if raw == "" {
-		return false
+func (r *Router) resolveSIDFromMention(ctx context.Context, guildID, raw string) (string, string, bool, error) {
+	userID, ok := parseUserMention(raw)
+	if !ok {
+		return "", "", false, nil
 	}
-	for _, id := range splitIDList(raw) {
-		if id == userID {
-			return true
-		}
+	if r.SF6AccountService == nil {
+		return "", "", true, fmt.Errorf("sf6機能が無効です")
 	}
-	return false
+	account, err := r.SF6AccountService.GetByUser(ctx, guildID, userID)
+	if err != nil {
+		return "", "", true, err
+	}
+	if account == nil || account.FighterID == "" {
+		return "", "", true, fmt.Errorf("指定ユーザーがSF6連携していません")
+	}
+	return account.FighterID, userID, true, nil
 }
 
-func splitIDList(raw string) []string {
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == ' ' || r == '\n' || r == '\t'
-	})
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		v := strings.TrimSpace(p)
-		if v != "" {
-			out = append(out, v)
+func parseUserMention(value string) (string, bool) {
+	v := strings.TrimSpace(value)
+	if !strings.HasPrefix(v, "<@") || !strings.HasSuffix(v, ">") {
+		return "", false
+	}
+	inner := strings.TrimSuffix(strings.TrimPrefix(v, "<@"), ">")
+	inner = strings.TrimPrefix(inner, "!")
+	if inner == "" {
+		return "", false
+	}
+	for _, r := range inner {
+		if r < '0' || r > '9' {
+			return "", false
 		}
 	}
-	return out
+	return inner, true
 }
 
 func deferEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate) error {

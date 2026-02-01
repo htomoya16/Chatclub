@@ -20,6 +20,8 @@ type BucklerClient interface {
 type SF6Service interface {
 	FetchAndStoreCustomBattles(ctx context.Context, guildID, userID, sid string, page int) (int, bool, error)
 	FetchCard(ctx context.Context, sid string) (buckler.CardResponse, error)
+	StatsByOpponentRange(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, startAt, endAt time.Time) ([]domain.SF6BattleStatRow, error)
+	StatsByOpponentCount(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit int) ([]domain.SF6BattleStatRow, error)
 }
 
 type sf6Service struct {
@@ -89,6 +91,20 @@ func (s *sf6Service) FetchCard(ctx context.Context, sid string) (buckler.CardRes
 		return buckler.CardResponse{}, errors.New("sid is required")
 	}
 	return s.bucklerClient.FetchCard(ctx, sid)
+}
+
+func (s *sf6Service) StatsByOpponentRange(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, startAt, endAt time.Time) ([]domain.SF6BattleStatRow, error) {
+	if s.battleRepo == nil {
+		return nil, errors.New("battle repo not configured")
+	}
+	return s.battleRepo.StatsByOpponentRange(ctx, guildID, subjectFighterID, opponentFighterID, startAt, endAt)
+}
+
+func (s *sf6Service) StatsByOpponentCount(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit int) ([]domain.SF6BattleStatRow, error) {
+	if s.battleRepo == nil {
+		return nil, errors.New("battle repo not configured")
+	}
+	return s.battleRepo.StatsByOpponentCount(ctx, guildID, subjectFighterID, opponentFighterID, limit)
 }
 
 func buildBattleFromReplay(guildID, userID, sid, ownerKind string, entry buckler.ReplayEntry) (domain.SF6Battle, bool) {
