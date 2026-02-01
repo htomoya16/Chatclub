@@ -20,25 +20,11 @@ func Commands() []*discordgo.ApplicationCommand {
 		},
 		{
 			Name:        "sf6_fetch",
-			Description: "Fetch and store SF6 battle log.",
+			Description: "Fetch and store SF6 battle log (admin only).",
 			DMPermission: func() *bool {
 				v := false
 				return &v
 			}(),
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "user_code",
-					Description: "SF6 user code (sid)",
-					Required:    true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionInteger,
-					Name:        "page",
-					Description: "Page number (optional)",
-					Required:    false,
-				},
-			},
 		},
 		{
 			Name:        "sf6_unlink",

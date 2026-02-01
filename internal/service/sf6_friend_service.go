@@ -11,6 +11,7 @@ type SF6FriendService interface {
 	Upsert(ctx context.Context, friend domain.SF6Friend) error
 	Delete(ctx context.Context, guildID, userID, fighterID string) error
 	List(ctx context.Context, guildID, userID string) ([]domain.SF6Friend, error)
+	ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Friend, error)
 }
 
 type sf6FriendService struct {
@@ -69,4 +70,11 @@ func (s *sf6FriendService) List(ctx context.Context, guildID, userID string) ([]
 		return nil, errors.New("guildID and userID are required")
 	}
 	return s.friendRepo.List(ctx, guildID, userID)
+}
+
+func (s *sf6FriendService) ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Friend, error) {
+	if guildID == "" {
+		return nil, errors.New("guildID is required")
+	}
+	return s.friendRepo.ListByGuild(ctx, guildID)
 }

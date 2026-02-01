@@ -47,34 +47,18 @@ func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCr
 		respondEphemeral(s, i, "guildのみ対応")
 		return
 	}
-	if r.SF6Service == nil {
+	if r.SF6Service == nil || r.SF6AccountService == nil || r.SF6FriendService == nil {
 		respondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
 		return
-	}
-
-	data := i.ApplicationCommandData()
-	var userCode string
-	page := 1
-	maxPages := 10
-	for _, opt := range data.Options {
-		switch opt.Name {
-		case "user_code":
-			userCode = opt.StringValue()
-		case "page":
-			page = int(opt.IntValue())
-		}
-	}
-	if userCode == "" {
-		respondEphemeral(s, i, "ユーザーコードが必要")
-		return
-	}
-	if page <= 0 {
-		page = 1
 	}
 
 	userID := interactionUserID(i)
 	if userID == "" {
 		respondEphemeral(s, i, "user_idの取得に失敗")
+		return
+	}
+	if !sf6FetchAllowed(i) {
+		respondEphemeral(s, i, "管理者または許可ユーザーのみ実行できます")
 		return
 	}
 
@@ -84,21 +68,76 @@ func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCr
 	}
 
 	ctx := context.Background()
+	accounts, err := r.SF6AccountService.ListByGuild(ctx, i.GuildID)
+	if err != nil {
+		followupEphemeral(s, i, "取得に失敗: "+err.Error())
+		return
+	}
+	friends, err := r.SF6FriendService.ListByGuild(ctx, i.GuildID)
+	if err != nil {
+		followupEphemeral(s, i, "取得に失敗: "+err.Error())
+		return
+	}
+	if len(accounts) == 0 && len(friends) == 0 {
+		followupEphemeral(s, i, "対象アカウント/フレンドがありません")
+		return
+	}
+
+	accountSIDs := make(map[string]struct{}, len(accounts))
+	for _, acc := range accounts {
+		if acc.FighterID == "" || acc.UserID == "" {
+			continue
+		}
+		accountSIDs[acc.FighterID] = struct{}{}
+	}
+
 	totalSaved := 0
 	pagesFetched := 0
-	for p := page; p < page+maxPages; p++ {
-		count, allExisting, err := r.SF6Service.FetchAndStoreCustomBattles(ctx, i.GuildID, userID, userCode, p)
+	accountsFetched := 0
+	friendsFetched := 0
+	skippedFriends := 0
+	fetchErrors := 0
+
+	for _, acc := range accounts {
+		if acc.FighterID == "" || acc.UserID == "" {
+			continue
+		}
+		saved, pages, err := r.initialFetch(ctx, i.GuildID, acc.UserID, acc.FighterID)
 		if err != nil {
-			followupEphemeral(s, i, "取得に失敗: "+err.Error())
-			return
+			fetchErrors++
+			continue
 		}
-		pagesFetched++
-		totalSaved += count
-		if allExisting {
-			break
-		}
+		accountsFetched++
+		totalSaved += saved
+		pagesFetched += pages
 	}
-	followupEphemeral(s, i, "取得完了。保存件数: "+strconv.Itoa(totalSaved)+" / pages: "+strconv.Itoa(pagesFetched))
+
+	seenFriends := make(map[string]struct{}, len(friends))
+	for _, friend := range friends {
+		if friend.FighterID == "" || friend.UserID == "" {
+			continue
+		}
+		if _, ok := accountSIDs[friend.FighterID]; ok {
+			skippedFriends++
+			continue
+		}
+		if _, ok := seenFriends[friend.FighterID]; ok {
+			continue
+		}
+		seenFriends[friend.FighterID] = struct{}{}
+		saved, pages, err := r.initialFetch(ctx, i.GuildID, friend.UserID, friend.FighterID)
+		if err != nil {
+			fetchErrors++
+			continue
+		}
+		friendsFetched++
+		totalSaved += saved
+		pagesFetched += pages
+	}
+
+	msg := fmt.Sprintf("取得完了。accounts=%d friends=%d skipped=%d saved=%d pages=%d errors=%d",
+		accountsFetched, friendsFetched, skippedFriends, totalSaved, pagesFetched, fetchErrors)
+	followupEphemeral(s, i, msg)
 }
 
 func (r *Router) handleSF6Unlink(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -160,6 +199,54 @@ func interactionUser(i *discordgo.InteractionCreate) *discordgo.User {
 		return i.User
 	}
 	return nil
+}
+
+func sf6FetchAllowed(i *discordgo.InteractionCreate) bool {
+	userID := interactionUserID(i)
+	if userID == "" {
+		return false
+	}
+	if sf6FetchAllowedUser(userID) {
+		return true
+	}
+	if i == nil || i.Member == nil {
+		return false
+	}
+	perms := i.Member.Permissions
+	if perms&discordgo.PermissionAdministrator != 0 {
+		return true
+	}
+	if perms&discordgo.PermissionManageGuild != 0 {
+		return true
+	}
+	return false
+}
+
+func sf6FetchAllowedUser(userID string) bool {
+	raw := strings.TrimSpace(os.Getenv("SF6_FETCH_ALLOWED_USER_IDS"))
+	if raw == "" {
+		return false
+	}
+	for _, id := range splitIDList(raw) {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
+func splitIDList(raw string) []string {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\n' || r == '\t'
+	})
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		v := strings.TrimSpace(p)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func deferEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate) error {

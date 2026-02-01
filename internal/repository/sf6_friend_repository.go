@@ -12,6 +12,7 @@ type SF6FriendRepository interface {
 	Delete(ctx context.Context, guildID, userID, fighterID string) error
 	List(ctx context.Context, guildID, userID string) ([]domain.SF6Friend, error)
 	ExistsByFighter(ctx context.Context, guildID, fighterID string) (bool, error)
+	ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Friend, error)
 }
 
 type sf6FriendRepository struct {
@@ -101,4 +102,37 @@ func (r *sf6FriendRepository) ExistsByFighter(ctx context.Context, guildID, figh
 		return false, err
 	}
 	return true, nil
+}
+
+func (r *sf6FriendRepository) ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Friend, error) {
+	if guildID == "" {
+		return nil, errors.New("guildID is required")
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, guild_id, user_id, fighter_id, display_name, alias, created_at, updated_at
+         FROM sf6_friends
+         WHERE guild_id = $1
+         ORDER BY created_at ASC`,
+		guildID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []domain.SF6Friend
+	for rows.Next() {
+		var friend domain.SF6Friend
+		if err := rows.Scan(
+			&friend.ID, &friend.GuildID, &friend.UserID, &friend.FighterID,
+			&friend.DisplayName, &friend.Alias, &friend.CreatedAt, &friend.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, friend)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

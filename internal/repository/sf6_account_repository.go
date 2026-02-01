@@ -12,6 +12,7 @@ type SF6AccountRepository interface {
 	GetByUser(ctx context.Context, guildID, userID string) (*domain.SF6Account, error)
 	GetByFighter(ctx context.Context, guildID, fighterID string) (*domain.SF6Account, error)
 	ListActive(ctx context.Context) ([]domain.SF6Account, error)
+	ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Account, error)
 	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
 
@@ -94,6 +95,38 @@ func (r *sf6AccountRepository) ListActive(ctx context.Context) ([]domain.SF6Acco
 		`SELECT id, guild_id, user_id, fighter_id, display_name, status, created_at, updated_at
          FROM sf6_accounts
          WHERE status = 'active'`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	accounts := []domain.SF6Account{}
+	for rows.Next() {
+		var account domain.SF6Account
+		if err := rows.Scan(
+			&account.ID, &account.GuildID, &account.UserID, &account.FighterID,
+			&account.DisplayName, &account.Status, &account.CreatedAt, &account.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
+func (r *sf6AccountRepository) ListByGuild(ctx context.Context, guildID string) ([]domain.SF6Account, error) {
+	if guildID == "" {
+		return nil, errors.New("guildID is required")
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, guild_id, user_id, fighter_id, display_name, status, created_at, updated_at
+         FROM sf6_accounts
+         WHERE guild_id = $1 AND status = 'active'`,
+		guildID,
 	)
 	if err != nil {
 		return nil, err
