@@ -45,7 +45,7 @@ DB_PORT=5432
 # DISCORD関連
 DISCORD_TOKEN=your_discord_bot_token
 DISCORD_APP_ID=your_discord_app_id
-DISCORD_GUILD_ID=your_test_guild_id
+DISCORD_GUILD_IDS=your_test_guild_id # カンマ区切り。空ならグローバルコマンド（反映に時間がかかる）
 ```
 
 ### 3. プロジェクトを起動(開発環境)
@@ -134,7 +134,8 @@ DISCORD_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 1. Discord クライアントの「設定 → 詳細設定」から **開発者モード** を有効にする。  
 2. Bot をテストする Discord サーバで、サーバアイコンを右クリック → 「IDをコピー」。  
-3. `.env` の `DISCORD_GUILD_ID` に貼り付ける。
+3. `.env` の `DISCORD_GUILD_IDS` に貼り付ける（複数ある場合はカンマ区切り）。  
+   グローバルコマンドにしたい場合は `DISCORD_GUILD_IDS` を空にする（反映に時間がかかる）。
 
 ### 3. Bot をサーバに招待
 

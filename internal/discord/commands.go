@@ -93,6 +93,28 @@ func Commands() []*discordgo.ApplicationCommand {
 			},
 		},
 		{
+			Name:        "sf6_history",
+			Description: "Show SF6 battle history.",
+			DMPermission: func() *bool {
+				v := false
+				return &v
+			}(),
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "opponent_code",
+					Description: "Opponent SF6 user code (sid)",
+					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "subject_code",
+					Description: "Subject SF6 user code (sid)",
+					Required:    false,
+				},
+			},
+		},
+		{
 			Name:        "sf6_session",
 			Description: "Start/end a session and show stats.",
 			DMPermission: func() *bool {

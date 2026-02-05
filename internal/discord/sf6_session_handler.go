@@ -85,6 +85,16 @@ func (r *Router) handleSF6Session(s *discordgo.Session, i *discordgo.Interaction
 			followupEphemeral(s, i, "アクティブなセッションがありません")
 			return
 		}
+		fetchUserID := userID
+		if r.SF6AccountService != nil {
+			if owner, err := r.SF6AccountService.GetByFighter(ctx, i.GuildID, subjectSID); err == nil && owner != nil && owner.UserID != "" {
+				fetchUserID = owner.UserID
+			}
+		}
+		if _, _, err := r.initialFetch(ctx, i.GuildID, fetchUserID, subjectSID); err != nil {
+			followupEphemeral(s, i, "対戦記録の取得に失敗: "+err.Error())
+			return
+		}
 		endExclusive := endedAt.Add(time.Nanosecond)
 		stats, err := r.SF6Service.StatsByOpponentRange(ctx, i.GuildID, subjectSID, opponentCode, session.StartedAt, endExclusive)
 		if err != nil {

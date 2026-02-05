@@ -4,7 +4,7 @@
 
 現状:
 
-- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`, `/sf6_friend`, `/sf6_stats`, `/sf6_session`
+- 実装済み: `/sf6_account`, `/sf6_unlink`, `/sf6_fetch`, `/sf6_friend`, `/sf6_stats`, `/sf6_session`, `/sf6_history`
 
 補足: 本ドキュメントの fighter_id は **Buckler プロフィールの short_id（sid（ユーザーコード））** を指す。
 
@@ -79,7 +79,24 @@
 
 ---
 
-## 5. 取得（現行）
+## 5. 履歴表示
+
+### /sf6_history
+
+- 概要: 対戦履歴（Custom）の一覧を表示する
+- 入力:
+  - opponent_code (sid) 必須
+  - subject_code (sid) 任意（未指定なら連携アカウント）
+- 出力:
+  - 日時（JST）/ 左に subject（連携済みならメンション）+ 使用キャラ
+  - 右に opponent（連携済みならメンション）+ 使用キャラ
+  - 勝敗（例: LOSE vs WIN）
+- 備考:
+  - 5件/ページでページング（前へ/次へボタン）
+
+---
+
+## 6. 取得（現行）
 
 ### /sf6_fetch
 

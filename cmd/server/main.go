@@ -104,7 +104,7 @@ func main() {
 	// ========= Discord セッション準備 =========
 	discordToken := os.Getenv("DISCORD_TOKEN")
 	discordAppID := os.Getenv("DISCORD_APP_ID")
-	discordGuildID := os.Getenv("DISCORD_GUILD_ID") // dev中は Guild 指定推奨
+	discordGuildIDs := envStringList("DISCORD_GUILD_IDS") // 空ならグローバルコマンド
 
 	var dSession discord.Session
 	if discordToken != "" {
@@ -145,12 +145,22 @@ func main() {
 				return
 			}
 
-			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 20*time.Second)
+			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancelCmd()
 
 			if envBool("DISCORD_REGISTER_COMMANDS", false) {
-				if err := dSession.RegisterCommands(ctxCmd, discordAppID, discordGuildID); err != nil {
-					e.Logger.Warnf("discord register commands failed: %v", err)
+				if len(discordGuildIDs) == 0 {
+					e.Logger.Infof("discord register commands: scope=global")
+					if err := dSession.RegisterCommands(ctxCmd, discordAppID, ""); err != nil {
+						e.Logger.Warnf("discord register commands failed: %v", err)
+					}
+				} else {
+					e.Logger.Infof("discord register commands: scope=guilds count=%d", len(discordGuildIDs))
+					for _, guildID := range discordGuildIDs {
+						if err := dSession.RegisterCommands(ctxCmd, discordAppID, guildID); err != nil {
+							e.Logger.Warnf("discord register commands failed: guild=%s err=%v", guildID, err)
+						}
+					}
 				}
 			}
 
@@ -247,4 +257,26 @@ func envBool(key string, def bool) bool {
 		return def
 	}
 	return val == "1" || val == "true" || val == "yes"
+}
+
+func envStringList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		val := strings.TrimSpace(part)
+		if val == "" {
+			continue
+		}
+		if _, ok := seen[val]; ok {
+			continue
+		}
+		seen[val] = struct{}{}
+		out = append(out, val)
+	}
+	return out
 }

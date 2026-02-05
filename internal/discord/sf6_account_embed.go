@@ -16,19 +16,25 @@ const (
 	sf6ColorUnlinked = 0xE74C3C
 )
 
-func sf6LinkButtons(linked bool) []discordgo.MessageComponent {
+func sf6LinkButtons(linked bool, ownerUserID string) []discordgo.MessageComponent {
+	linkID := "sf6_link_button"
+	unlinkID := "sf6_unlink_button"
+	if strings.TrimSpace(ownerUserID) != "" {
+		linkID = linkID + ":" + ownerUserID
+		unlinkID = unlinkID + ":" + ownerUserID
+	}
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
 					Label:    "連携",
 					Style:    discordgo.PrimaryButton,
-					CustomID: "sf6_link_button",
+					CustomID: linkID,
 				},
 				discordgo.Button{
 					Label:    "解除",
 					Style:    discordgo.DangerButton,
-					CustomID: "sf6_unlink_button",
+					CustomID: unlinkID,
 					Disabled: !linked,
 				},
 			},

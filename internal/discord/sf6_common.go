@@ -143,6 +143,85 @@ func envBool(key string) bool {
 	return v == "1" || v == "true" || v == "yes"
 }
 
+func interactionUserID(i *discordgo.InteractionCreate) string {
+	user := interactionUser(i)
+	if user == nil {
+		return ""
+	}
+	return user.ID
+}
+
+func interactionUser(i *discordgo.InteractionCreate) *discordgo.User {
+	if i == nil {
+		return nil
+	}
+	if i.Member != nil && i.Member.User != nil {
+		return i.Member.User
+	}
+	if i.User != nil {
+		return i.User
+	}
+	return nil
+}
+
+func parseUserMention(value string) (string, bool) {
+	v := strings.TrimSpace(value)
+	if !strings.HasPrefix(v, "<@") || !strings.HasSuffix(v, ">") {
+		return "", false
+	}
+	inner := strings.TrimSuffix(strings.TrimPrefix(v, "<@"), ">")
+	inner = strings.TrimPrefix(inner, "!")
+	if inner == "" {
+		return "", false
+	}
+	for _, r := range inner {
+		if r < '0' || r > '9' {
+			return "", false
+		}
+	}
+	return inner, true
+}
+
+func parseOwnedCustomID(customID, prefix string) (string, bool) {
+	if customID == prefix {
+		return "", true
+	}
+	if !strings.HasPrefix(customID, prefix+":") {
+		return "", false
+	}
+	return strings.TrimPrefix(customID, prefix+":"), true
+}
+
+func deferEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func deferPublic(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
+}
+
+func followupEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
+	_, _ = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		Content: msg,
+		Flags:   discordgo.MessageFlagsEphemeral,
+	})
+}
+
+func formatJST(t time.Time) string {
+	loc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		return t.Format("2006-01-02 15:04")
+	}
+	return t.In(loc).Format("2006-01-02 15:04")
+}
+
 func modalValue(components []discordgo.MessageComponent, customID string) string {
 	for _, c := range components {
 		var row *discordgo.ActionsRow

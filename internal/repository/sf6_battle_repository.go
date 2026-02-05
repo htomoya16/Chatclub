@@ -18,6 +18,8 @@ type SF6BattleRepository interface {
 	ExistingSourceKeys(ctx context.Context, guildID, subjectFighterID string, keys []string) (map[string]struct{}, error)
 	StatsByOpponentRange(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, startAt, endAt time.Time) ([]domain.SF6BattleStatRow, error)
 	StatsByOpponentCount(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit int) ([]domain.SF6BattleStatRow, error)
+	HistoryByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit, offset int) ([]domain.SF6BattleHistoryRow, error)
+	CountByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) (int, error)
 	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
 
@@ -295,6 +297,59 @@ func (r *sf6BattleRepository) StatsByOpponentCount(ctx context.Context, guildID,
 		return nil, err
 	}
 	return stats, nil
+}
+
+func (r *sf6BattleRepository) HistoryByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit, offset int) ([]domain.SF6BattleHistoryRow, error) {
+	if guildID == "" || subjectFighterID == "" || opponentFighterID == "" {
+		return nil, errors.New("guildID, subjectFighterID, opponentFighterID are required")
+	}
+	if limit <= 0 {
+		return nil, errors.New("limit must be positive")
+	}
+	if offset < 0 {
+		return nil, errors.New("offset must be >= 0")
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT battle_at, result, self_character, opponent_character
+         FROM sf6_battles
+         WHERE guild_id = $1 AND subject_fighter_id = $2 AND opponent_fighter_id = $3
+         ORDER BY battle_at DESC, source_key DESC
+         LIMIT $4 OFFSET $5`,
+		guildID, subjectFighterID, opponentFighterID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []domain.SF6BattleHistoryRow
+	for rows.Next() {
+		var row domain.SF6BattleHistoryRow
+		if err := rows.Scan(&row.BattleAt, &row.Result, &row.SelfCharacter, &row.OpponentCharacter); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *sf6BattleRepository) CountByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) (int, error) {
+	if guildID == "" || subjectFighterID == "" || opponentFighterID == "" {
+		return 0, errors.New("guildID, subjectFighterID, opponentFighterID are required")
+	}
+	var count int
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+         FROM sf6_battles
+         WHERE guild_id = $1 AND subject_fighter_id = $2 AND opponent_fighter_id = $3`,
+		guildID, subjectFighterID, opponentFighterID,
+	).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *sf6BattleRepository) DeleteByUser(ctx context.Context, guildID, userID string) (int64, error) {

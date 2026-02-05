@@ -24,14 +24,9 @@ func (r *Router) handleSF6Stats(s *discordgo.Session, i *discordgo.InteractionCr
 		return
 	}
 
-	if err := deferPublic(s, i); err != nil {
-		respondEphemeral(s, i, "受付に失敗しました")
-		return
-	}
-
 	data := i.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		followupEphemeral(s, i, "subcommandが必要です")
+		respondEphemeral(s, i, "subcommandが必要です")
 		return
 	}
 	sub := data.Options[0]
@@ -54,7 +49,16 @@ func (r *Router) handleSF6Stats(s *discordgo.Session, i *discordgo.InteractionCr
 			}
 		}
 		if opponentCode == "" || fromStr == "" || toStr == "" {
-			followupEphemeral(s, i, "opponent_code/from/to が必要です")
+			respondEphemeral(s, i, "opponent_code/from/to が必要です")
+			return
+		}
+		startAt, endAt, err := parseDateRangeJST(fromStr, toStr)
+		if err != nil {
+			respondEphemeral(s, i, "日付形式エラー: "+err.Error())
+			return
+		}
+		if err := deferPublic(s, i); err != nil {
+			respondEphemeral(s, i, "受付に失敗しました")
 			return
 		}
 		if sid, _, ok, err := r.resolveSIDFromMention(ctx, i.GuildID, opponentCode); ok {
@@ -67,11 +71,6 @@ func (r *Router) handleSF6Stats(s *discordgo.Session, i *discordgo.InteractionCr
 		subjectSID, err := r.resolveSubjectSID(ctx, i.GuildID, userID, subjectCode)
 		if err != nil {
 			followupEphemeral(s, i, err.Error())
-			return
-		}
-		startAt, endAt, err := parseDateRangeJST(fromStr, toStr)
-		if err != nil {
-			followupEphemeral(s, i, "日付形式エラー: "+err.Error())
 			return
 		}
 		stats, err := r.SF6Service.StatsByOpponentRange(ctx, i.GuildID, subjectSID, opponentCode, startAt, endAt)
@@ -98,7 +97,11 @@ func (r *Router) handleSF6Stats(s *discordgo.Session, i *discordgo.InteractionCr
 			}
 		}
 		if opponentCode == "" || count <= 0 {
-			followupEphemeral(s, i, "opponent_code/count が必要です")
+			respondEphemeral(s, i, "opponent_code/count が必要です")
+			return
+		}
+		if err := deferPublic(s, i); err != nil {
+			respondEphemeral(s, i, "受付に失敗しました")
 			return
 		}
 		if sid, _, ok, err := r.resolveSIDFromMention(ctx, i.GuildID, opponentCode); ok {
@@ -123,7 +126,7 @@ func (r *Router) handleSF6Stats(s *discordgo.Session, i *discordgo.InteractionCr
 		embed := buildStatsEmbed("SF6 Stats (Count)", label, subjectUser, opponentUser, stats)
 		followupPublicEmbed(s, i, "", embed, nil)
 	default:
-		followupEphemeral(s, i, "不明なサブコマンドです")
+		respondEphemeral(s, i, "不明なサブコマンドです")
 	}
 }
 
@@ -147,14 +150,6 @@ func parseDateRangeJST(fromStr, toStr string) (time.Time, time.Time, error) {
 	return start, endExclusive, nil
 }
 
-func formatJST(t time.Time) string {
-	loc, err := time.LoadLocation("Asia/Tokyo")
-	if err != nil {
-		return t.Format("2006-01-02 15:04")
-	}
-	return t.In(loc).Format("2006-01-02 15:04")
-}
-
 func (r *Router) buildStatsEmbedUsers(ctx context.Context, s *discordgo.Session, guildID, subjectSID, opponentSID string) (statsEmbedUser, statsEmbedUser) {
 	subject := r.buildStatsEmbedUser(ctx, s, guildID, subjectSID)
 	opponent := r.buildStatsEmbedUser(ctx, s, guildID, opponentSID)
@@ -163,19 +158,34 @@ func (r *Router) buildStatsEmbedUsers(ctx context.Context, s *discordgo.Session,
 
 func (r *Router) buildStatsEmbedUser(ctx context.Context, s *discordgo.Session, guildID, fighterID string) statsEmbedUser {
 	info := statsEmbedUser{SID: fighterID}
-	if r == nil || r.SF6AccountService == nil || fighterID == "" {
+	if r == nil || fighterID == "" {
 		return info
 	}
-	account, err := r.SF6AccountService.GetByFighter(ctx, guildID, fighterID)
-	if err != nil || account == nil || account.UserID == "" {
-		return info
-	}
-	info.UserID = account.UserID
-	info.Mention = "<@" + account.UserID + ">"
-	if s != nil {
-		if user, err := s.User(account.UserID); err == nil && user != nil {
-			info.IconURL = user.AvatarURL("")
+	if r.SF6AccountService != nil {
+		account, err := r.SF6AccountService.GetByFighter(ctx, guildID, fighterID)
+		if err == nil && account != nil && account.UserID != "" {
+			info.UserID = account.UserID
+			info.Mention = "<@" + account.UserID + ">"
+			if s != nil {
+				if user, err := s.User(account.UserID); err == nil && user != nil {
+					info.IconURL = user.AvatarURL("")
+				}
+			}
 		}
+	}
+	return r.populateStatsUserName(ctx, info)
+}
+
+func (r *Router) populateStatsUserName(ctx context.Context, info statsEmbedUser) statsEmbedUser {
+	if r == nil || r.SF6Service == nil || info.SID == "" {
+		return info
+	}
+	card, err := r.SF6Service.FetchCard(ctx, info.SID)
+	if err != nil {
+		return info
+	}
+	if card.FighterName != "" {
+		info.DisplayName = card.FighterName
 	}
 	return info
 }
@@ -187,6 +197,8 @@ func parseDateJST(value string, loc *time.Location) (time.Time, error) {
 	layouts := []string{
 		"2006-01-02",
 		"2006-1-2",
+		"2006-01-02 15:04",
+		"2006-1-2 15:04",
 	}
 	for _, layout := range layouts {
 		if t, err := time.ParseInLocation(layout, value, loc); err == nil {

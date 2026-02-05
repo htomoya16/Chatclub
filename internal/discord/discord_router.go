@@ -63,6 +63,8 @@ func (r *Router) HandleInteraction(s *discordgo.Session, i *discordgo.Interactio
 			r.handleSF6Fetch(s, i)
 		case "sf6_stats":
 			r.handleSF6Stats(s, i)
+		case "sf6_history":
+			r.handleSF6History(s, i)
 		case "sf6_session":
 			r.handleSF6Session(s, i)
 		case "sf6_friend":

@@ -21,6 +21,7 @@ type statsEmbedUser struct {
 	UserID  string
 	Mention string
 	IconURL string
+	DisplayName string
 }
 
 func buildStatsEmbed(title, periodLabel string, subject, opponent statsEmbedUser, rows []domain.SF6BattleStatRow) *discordgo.MessageEmbed {
@@ -193,13 +194,20 @@ func padRight(s string, width int) string {
 }
 
 func formatStatsUserLine(user statsEmbedUser) string {
+	name := strings.TrimSpace(user.DisplayName)
 	if user.Mention != "" {
 		if user.SID != "" {
+			if name != "" {
+				return fmt.Sprintf("%s (%s, SID: `%s`)", user.Mention, name, user.SID)
+			}
 			return fmt.Sprintf("%s (SID: `%s`)", user.Mention, user.SID)
 		}
 		return user.Mention
 	}
 	if user.SID != "" {
+		if name != "" {
+			return fmt.Sprintf("%s (SID: `%s`)", name, user.SID)
+		}
 		return "`" + user.SID + "`"
 	}
 	return "unknown"

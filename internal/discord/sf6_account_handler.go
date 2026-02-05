@@ -39,7 +39,7 @@ func (r *Router) handleSF6Link(s *discordgo.Session, i *discordgo.InteractionCre
 		followupEphemeral(s, i, "状態取得に失敗: "+err.Error())
 		return
 	}
-	followupEphemeralEmbed(s, i, accountEmbed, sf6LinkButtons(linked))
+	followupEphemeralEmbed(s, i, accountEmbed, sf6LinkButtons(linked, userID))
 }
 
 func (r *Router) handleSF6Unlink(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -79,28 +79,7 @@ func (r *Router) handleSF6Unlink(s *discordgo.Session, i *discordgo.InteractionC
 		followupEphemeral(s, i, "連携解除しました")
 		return
 	}
-	followupEphemeralEmbed(s, i, accountEmbed, sf6LinkButtons(linked))
-}
-
-func interactionUserID(i *discordgo.InteractionCreate) string {
-	user := interactionUser(i)
-	if user == nil {
-		return ""
-	}
-	return user.ID
-}
-
-func interactionUser(i *discordgo.InteractionCreate) *discordgo.User {
-	if i == nil {
-		return nil
-	}
-	if i.Member != nil && i.Member.User != nil {
-		return i.Member.User
-	}
-	if i.User != nil {
-		return i.User
-	}
-	return nil
+	followupEphemeralEmbed(s, i, accountEmbed, sf6LinkButtons(linked, userID))
 }
 
 func (r *Router) resolveSubjectSID(ctx context.Context, guildID, userID, subjectOverride string) (string, error) {
@@ -145,54 +124,19 @@ func (r *Router) resolveSIDFromMention(ctx context.Context, guildID, raw string)
 	return account.FighterID, userID, true, nil
 }
 
-func parseUserMention(value string) (string, bool) {
-	v := strings.TrimSpace(value)
-	if !strings.HasPrefix(v, "<@") || !strings.HasSuffix(v, ">") {
-		return "", false
-	}
-	inner := strings.TrimSuffix(strings.TrimPrefix(v, "<@"), ">")
-	inner = strings.TrimPrefix(inner, "!")
-	if inner == "" {
-		return "", false
-	}
-	for _, r := range inner {
-		if r < '0' || r > '9' {
-			return "", false
-		}
-	}
-	return inner, true
-}
-
-func deferEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
-	})
-}
-
-func deferPublic(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
-}
-
-func followupEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
-	_, _ = s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
-		Content: msg,
-		Flags:   discordgo.MessageFlagsEphemeral,
-	})
-}
-
 func (r *Router) handleSF6Component(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
 		respondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 	data := i.MessageComponentData()
-	switch data.CustomID {
-	case "sf6_link_button":
+	switch {
+	case strings.HasPrefix(data.CustomID, "sf6_link_button"):
+		ownerID, ok := parseOwnedCustomID(data.CustomID, "sf6_link_button")
+		if ok && ownerID != "" && interactionUserID(i) != ownerID {
+			respondEphemeral(s, i, "この操作は発行者のみ実行できます")
+			return
+		}
 		_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
@@ -215,66 +159,17 @@ func (r *Router) handleSF6Component(s *discordgo.Session, i *discordgo.Interacti
 				},
 			},
 		})
-	case "sf6_unlink_button":
+	case strings.HasPrefix(data.CustomID, "sf6_unlink_button"):
+		ownerID, ok := parseOwnedCustomID(data.CustomID, "sf6_unlink_button")
+		if ok && ownerID != "" && interactionUserID(i) != ownerID {
+			respondEphemeral(s, i, "この操作は発行者のみ実行できます")
+			return
+		}
 		r.handleSF6Unlink(s, i)
-	case "sf6_friend_add_button":
-		_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseModal,
-			Data: &discordgo.InteractionResponseData{
-				Title:    "SF6 Friend Add",
-				CustomID: "sf6_friend_add_modal",
-				Components: []discordgo.MessageComponent{
-					discordgo.ActionsRow{
-						Components: []discordgo.MessageComponent{
-							discordgo.TextInput{
-								CustomID:    "user_code",
-								Label:       "SF6 user code (sid)",
-								Style:       discordgo.TextInputShort,
-								Placeholder: "例: 0123456789",
-								Required:    true,
-								MinLength:   3,
-								MaxLength:   20,
-							},
-						},
-					},
-					discordgo.ActionsRow{
-						Components: []discordgo.MessageComponent{
-							discordgo.TextInput{
-								CustomID:    "alias",
-								Label:       "Alias (optional)",
-								Style:       discordgo.TextInputShort,
-								Placeholder: "覚えやすい名前",
-								Required:    false,
-								MaxLength:   32,
-							},
-						},
-					},
-				},
-			},
-		})
-	case "sf6_friend_remove_button":
-		_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseModal,
-			Data: &discordgo.InteractionResponseData{
-				Title:    "SF6 Friend Remove",
-				CustomID: "sf6_friend_remove_modal",
-				Components: []discordgo.MessageComponent{
-					discordgo.ActionsRow{
-						Components: []discordgo.MessageComponent{
-							discordgo.TextInput{
-								CustomID:    "user_code",
-								Label:       "SF6 user code (sid)",
-								Style:       discordgo.TextInputShort,
-								Placeholder: "例: 0123456789",
-								Required:    true,
-								MinLength:   3,
-								MaxLength:   20,
-							},
-						},
-					},
-				},
-			},
-		})
+	case data.CustomID == "sf6_friend_add_button" || data.CustomID == "sf6_friend_remove_button":
+		r.handleSF6FriendComponent(s, i, data.CustomID)
+	case strings.HasPrefix(data.CustomID, "sf6_history_page"):
+		r.handleSF6HistoryComponent(s, i, data.CustomID)
 	}
 }
 
@@ -308,7 +203,7 @@ func (r *Router) handleSF6ModalSubmit(s *discordgo.Session, i *discordgo.Interac
 			respondEphemeral(s, i, "sf6機能が無効です")
 			return
 		}
-		if err := deferEphemeral(s, i); err != nil {
+		if err := deferPublic(s, i); err != nil {
 			respondEphemeral(s, i, "受付に失敗しました")
 			return
 		}
@@ -335,93 +230,11 @@ func (r *Router) handleSF6ModalSubmit(s *discordgo.Session, i *discordgo.Interac
 			followupEphemeral(s, i, "登録完了。移し替え件数: "+strconv.FormatInt(updated, 10))
 			return
 		}
-		followupPublicEmbed(s, i, "<@"+userID+"> 連携しました", accountEmbed, sf6LinkButtons(linked))
-	case "sf6_friend_add_modal":
-		userCode := modalValue(data.Components, "user_code")
-		if userCode == "" {
-			respondEphemeral(s, i, "ユーザーコードが必要")
-			return
-		}
-		alias := modalValue(data.Components, "alias")
-		userID := interactionUserID(i)
-		user := interactionUser(i)
-		if userID == "" {
-			respondEphemeral(s, i, "user_idの取得に失敗")
-			return
-		}
-		if r.SF6FriendService == nil {
-			respondEphemeral(s, i, "sf6機能が無効です")
-			return
-		}
-		if err := deferEphemeral(s, i); err != nil {
-			respondEphemeral(s, i, "受付に失敗しました")
-			return
-		}
-		displayName := ""
-		if r.SF6Service != nil {
-			if card, err := r.SF6Service.FetchCard(context.Background(), userCode); err == nil {
-				displayName = card.FighterName
-			}
-		}
-		friend := domain.SF6Friend{
-			GuildID:     i.GuildID,
-			UserID:      userID,
-			FighterID:   userCode,
-			DisplayName: displayName,
-			Alias:       alias,
-		}
-		ctx := context.Background()
-		if err := r.SF6FriendService.Upsert(ctx, friend); err != nil {
-			followupEphemeral(s, i, "登録に失敗: "+err.Error())
-			return
-		}
-		var fetchErr error
-		if r.SF6Service != nil {
-			_, _, fetchErr = r.initialFetch(ctx, i.GuildID, userID, userCode)
-		}
-		friends, err := r.SF6FriendService.List(ctx, i.GuildID, userID)
-		if err != nil {
-			followupEphemeral(s, i, "登録完了。一覧の取得に失敗: "+err.Error())
-			return
-		}
-		embed := r.buildFriendEmbed(ctx, "SF6 Friends", i.GuildID, userID, user, friends)
-		followupEphemeralEmbed(s, i, embed, sf6FriendButtons())
-		if fetchErr != nil {
-			followupEphemeral(s, i, "登録完了。初回取得に失敗: "+fetchErr.Error())
-		}
-	case "sf6_friend_remove_modal":
-		userCode := modalValue(data.Components, "user_code")
-		if userCode == "" {
-			respondEphemeral(s, i, "ユーザーコードが必要")
-			return
-		}
-		userID := interactionUserID(i)
-		user := interactionUser(i)
-		if userID == "" {
-			respondEphemeral(s, i, "user_idの取得に失敗")
-			return
-		}
-		if r.SF6FriendService == nil {
-			respondEphemeral(s, i, "sf6機能が無効です")
-			return
-		}
-		if err := deferEphemeral(s, i); err != nil {
-			respondEphemeral(s, i, "受付に失敗しました")
-			return
-		}
-		ctx := context.Background()
-		if err := r.SF6FriendService.Delete(ctx, i.GuildID, userID, userCode); err != nil {
-			followupEphemeral(s, i, "削除に失敗: "+err.Error())
-			return
-		}
-		friends, err := r.SF6FriendService.List(ctx, i.GuildID, userID)
-		if err != nil {
-			followupEphemeral(s, i, "削除完了。一覧の取得に失敗: "+err.Error())
-			return
-		}
-		embed := r.buildFriendEmbed(ctx, "SF6 Friends", i.GuildID, userID, user, friends)
-		followupEphemeralEmbed(s, i, embed, sf6FriendButtons())
+		followupPublicEmbed(s, i, "<@"+userID+"> 連携しました", accountEmbed, sf6LinkButtons(linked, userID))
 	default:
+		if r.handleSF6FriendModalSubmit(s, i) {
+			return
+		}
 		if strings.HasPrefix(data.CustomID, "sf6_") {
 			respondEphemeral(s, i, "不明な操作です。もう一度お試しください。")
 		}

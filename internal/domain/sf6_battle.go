@@ -24,3 +24,10 @@ type SF6Battle struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
+
+type SF6BattleHistoryRow struct {
+	BattleAt          time.Time
+	Result            string
+	SelfCharacter     string
+	OpponentCharacter string
+}
