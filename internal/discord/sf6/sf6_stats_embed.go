@@ -1,4 +1,4 @@
-package discord
+package sf6
 
 import (
 	"backend/internal/domain"

@@ -1,6 +1,8 @@
 package discord
 
 import (
+	"backend/internal/discord/anonymous"
+	"backend/internal/discord/sf6"
 	"backend/internal/service"
 
 	"github.com/bwmarrin/discordgo"
@@ -8,11 +10,8 @@ import (
 
 // Router は Discord の Interaction を各ハンドラに振り分ける役割。
 type Router struct {
-	AnonymousChannelService service.AnonymousChannelService
-	SF6AccountService       service.SF6AccountService
-	SF6FriendService        service.SF6FriendService
-	SF6Service              service.SF6Service
-	SF6SessionService       service.SF6SessionService
+	anonymous *anonymous.Handler
+	sf6       *sf6.Handler
 	// TournamentService service.TournamentService
 	// CypherService     service.CypherService
 	// BeatService       service.BeatService
@@ -30,11 +29,8 @@ func NewRouter(
 	// beatService service.BeatService,
 ) *Router {
 	return &Router{
-		AnonymousChannelService: anonymousChannelService,
-		SF6AccountService:       sf6AccountService,
-		SF6FriendService:        sf6FriendService,
-		SF6Service:              sf6Service,
-		SF6SessionService:       sf6SessionService,
+		anonymous: anonymous.NewHandler(anonymousChannelService),
+		sf6:       sf6.NewHandler(sf6AccountService, sf6FriendService, sf6Service, sf6SessionService),
 		// TournamentService: tournamentService,
 		// CypherService:     cypherService,
 		// BeatService:       beatService,
@@ -52,23 +48,23 @@ func (r *Router) HandleInteraction(s *discordgo.Session, i *discordgo.Interactio
 			// /ping
 			r.handlePing(s, i)
 		case "anon":
-			r.handleAnon(s, i)
+			r.anonymous.HandleAnon(s, i)
 		case "anon-channel":
-			r.handleAnonChannel(s, i)
+			r.anonymous.HandleAnonChannel(s, i)
 		case "sf6_account":
-			r.handleSF6Link(s, i)
+			r.sf6.HandleAccount(s, i)
 		case "sf6_unlink":
-			r.handleSF6Unlink(s, i)
+			r.sf6.HandleUnlink(s, i)
 		case "sf6_fetch":
-			r.handleSF6Fetch(s, i)
+			r.sf6.HandleFetch(s, i)
 		case "sf6_stats":
-			r.handleSF6Stats(s, i)
+			r.sf6.HandleStats(s, i)
 		case "sf6_history":
-			r.handleSF6History(s, i)
+			r.sf6.HandleHistory(s, i)
 		case "sf6_session":
-			r.handleSF6Session(s, i)
+			r.sf6.HandleSession(s, i)
 		case "sf6_friend":
-			r.handleSF6Friend(s, i)
+			r.sf6.HandleFriend(s, i)
 
 		// 将来的な拡張 (コメントアウトしておいてOK)
 		// case "tournament":
@@ -82,9 +78,9 @@ func (r *Router) HandleInteraction(s *discordgo.Session, i *discordgo.Interactio
 			return
 		}
 	case discordgo.InteractionMessageComponent:
-		r.handleSF6Component(s, i)
+		r.sf6.HandleComponent(s, i)
 	case discordgo.InteractionModalSubmit:
-		r.handleSF6ModalSubmit(s, i)
+		r.sf6.HandleModalSubmit(s, i)
 	default:
 		return
 	}

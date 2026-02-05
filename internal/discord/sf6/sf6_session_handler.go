@@ -1,37 +1,38 @@
-package discord
+package sf6
 
 import (
-	"context"
 	"fmt"
 	"time"
+
+	"backend/internal/discord/common"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-func (r *Router) handleSF6Session(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (r *Handler) handleSF6Session(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
+		common.RespondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 	if r.SF6SessionService == nil || r.SF6Service == nil || r.SF6AccountService == nil {
-		respondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
+		common.RespondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
 		return
 	}
 
-	userID := interactionUserID(i)
+	userID := common.InteractionUserID(i)
 	if userID == "" {
-		respondEphemeral(s, i, "user_idの取得に失敗")
+		common.RespondEphemeral(s, i, "user_idの取得に失敗")
 		return
 	}
 
-	if err := deferEphemeral(s, i); err != nil {
-		respondEphemeral(s, i, "受付に失敗しました")
+	if err := common.DeferEphemeral(s, i); err != nil {
+		common.RespondEphemeral(s, i, "受付に失敗しました")
 		return
 	}
 
 	data := i.ApplicationCommandData()
 	if len(data.Options) == 0 {
-		followupEphemeral(s, i, "subcommandが必要です")
+		common.FollowupEphemeral(s, i, "subcommandが必要です")
 		return
 	}
 	sub := data.Options[0]
@@ -46,21 +47,22 @@ func (r *Router) handleSF6Session(s *discordgo.Session, i *discordgo.Interaction
 		}
 	}
 	if opponentCode == "" {
-		followupEphemeral(s, i, "opponent_code が必要です")
+		common.FollowupEphemeral(s, i, "opponent_code が必要です")
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := common.CommandContextForInteraction(s, i)
+	defer cancel()
 	if sid, _, ok, err := r.resolveSIDFromMention(ctx, i.GuildID, opponentCode); ok {
 		if err != nil {
-			followupEphemeral(s, i, err.Error())
+			common.FollowupEphemeral(s, i, err.Error())
 			return
 		}
 		opponentCode = sid
 	}
 	subjectSID, err := r.resolveSubjectSID(ctx, i.GuildID, userID, subjectCode)
 	if err != nil {
-		followupEphemeral(s, i, err.Error())
+		common.FollowupEphemeral(s, i, err.Error())
 		return
 	}
 
@@ -69,20 +71,20 @@ func (r *Router) handleSF6Session(s *discordgo.Session, i *discordgo.Interaction
 		startedAt := time.Now().UTC()
 		_, err := r.SF6SessionService.Start(ctx, i.GuildID, userID, opponentCode, startedAt)
 		if err != nil {
-			followupEphemeral(s, i, "開始に失敗: "+err.Error())
+			common.FollowupEphemeral(s, i, "開始に失敗: "+err.Error())
 			return
 		}
 		label := fmt.Sprintf("セッション開始: subject=%s opponent=%s", subjectSID, opponentCode)
-		followupEphemeral(s, i, label)
+		common.FollowupEphemeral(s, i, label)
 	case "end":
 		endedAt := time.Now().UTC()
 		session, err := r.SF6SessionService.End(ctx, i.GuildID, userID, opponentCode, endedAt)
 		if err != nil {
-			followupEphemeral(s, i, "終了に失敗: "+err.Error())
+			common.FollowupEphemeral(s, i, "終了に失敗: "+err.Error())
 			return
 		}
 		if session == nil {
-			followupEphemeral(s, i, "アクティブなセッションがありません")
+			common.FollowupEphemeral(s, i, "アクティブなセッションがありません")
 			return
 		}
 		fetchUserID := userID
@@ -92,20 +94,20 @@ func (r *Router) handleSF6Session(s *discordgo.Session, i *discordgo.Interaction
 			}
 		}
 		if _, _, err := r.initialFetch(ctx, i.GuildID, fetchUserID, subjectSID); err != nil {
-			followupEphemeral(s, i, "対戦記録の取得に失敗: "+err.Error())
+			common.FollowupEphemeral(s, i, "対戦記録の取得に失敗: "+err.Error())
 			return
 		}
 		endExclusive := endedAt.Add(time.Nanosecond)
 		stats, err := r.SF6Service.StatsByOpponentRange(ctx, i.GuildID, subjectSID, opponentCode, session.StartedAt, endExclusive)
 		if err != nil {
-			followupEphemeral(s, i, "集計に失敗: "+err.Error())
+			common.FollowupEphemeral(s, i, "集計に失敗: "+err.Error())
 			return
 		}
 		label := fmt.Sprintf("セッション: %s〜%s (JST)", formatJST(session.StartedAt), formatJST(endedAt))
 		subjectUser, opponentUser := r.buildStatsEmbedUsers(ctx, s, i.GuildID, subjectSID, opponentCode)
 		embed := buildStatsEmbed("SF6 Stats (Session)", label, subjectUser, opponentUser, stats)
-		followupPublicEmbed(s, i, "", embed, nil)
+		common.FollowupPublicEmbed(s, i, "", embed, nil)
 	default:
-		followupEphemeral(s, i, "不明なサブコマンドです")
+		common.FollowupEphemeral(s, i, "不明なサブコマンドです")
 	}
 }

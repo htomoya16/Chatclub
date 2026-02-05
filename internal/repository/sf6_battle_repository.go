@@ -20,6 +20,7 @@ type SF6BattleRepository interface {
 	StatsByOpponentCount(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit int) ([]domain.SF6BattleStatRow, error)
 	HistoryByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit, offset int) ([]domain.SF6BattleHistoryRow, error)
 	CountByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) (int, error)
+	BattleTimesByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) ([]time.Time, error)
 	DeleteByUser(ctx context.Context, guildID, userID string) (int64, error)
 }
 
@@ -350,6 +351,36 @@ func (r *sf6BattleRepository) CountByOpponent(ctx context.Context, guildID, subj
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *sf6BattleRepository) BattleTimesByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) ([]time.Time, error) {
+	if guildID == "" || subjectFighterID == "" || opponentFighterID == "" {
+		return nil, errors.New("guildID, subjectFighterID, opponentFighterID are required")
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT battle_at
+         FROM sf6_battles
+         WHERE guild_id = $1 AND subject_fighter_id = $2 AND opponent_fighter_id = $3
+         ORDER BY battle_at DESC, source_key DESC`,
+		guildID, subjectFighterID, opponentFighterID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []time.Time
+	for rows.Next() {
+		var t time.Time
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *sf6BattleRepository) DeleteByUser(ctx context.Context, guildID, userID string) (int64, error) {

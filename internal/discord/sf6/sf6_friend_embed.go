@@ -1,12 +1,14 @@
-package discord
+package sf6
 
 import (
-	"backend/internal/domain"
 	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"backend/internal/discord/common"
+	"backend/internal/domain"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -30,8 +32,8 @@ func sf6FriendButtons() []discordgo.MessageComponent {
 	}
 }
 
-func (r *Router) buildFriendEmbed(ctx context.Context, title, guildID, userID string, user *discordgo.User, friends []domain.SF6Friend) *discordgo.MessageEmbed {
-	displayName := discordDisplayName(user)
+func (r *Handler) buildFriendEmbed(ctx context.Context, title, guildID, userID string, user *discordgo.User, friends []domain.SF6Friend) *discordgo.MessageEmbed {
+	displayName := common.DiscordDisplayName(user)
 	authorName := fmt.Sprintf("👥 %s のフレンド一覧", displayName)
 	authorIcon := ""
 	if user != nil && user.Avatar != "" {

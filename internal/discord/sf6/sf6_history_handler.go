@@ -1,11 +1,13 @@
-package discord
+package sf6
 
 import (
-	"backend/internal/domain"
 	"context"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"backend/internal/discord/common"
+	"backend/internal/domain"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -19,19 +21,19 @@ type sf6HistoryUser struct {
 	IconURL     string
 }
 
-func (r *Router) handleSF6History(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (r *Handler) handleSF6History(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
+		common.RespondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 	if r.SF6Service == nil || r.SF6AccountService == nil {
-		respondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
+		common.RespondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
 		return
 	}
 
-	userID := interactionUserID(i)
+	userID := common.InteractionUserID(i)
 	if userID == "" {
-		respondEphemeral(s, i, "user_idの取得に失敗")
+		common.RespondEphemeral(s, i, "user_idの取得に失敗")
 		return
 	}
 
@@ -47,51 +49,67 @@ func (r *Router) handleSF6History(s *discordgo.Session, i *discordgo.Interaction
 		}
 	}
 	if opponentCode == "" {
-		respondEphemeral(s, i, "opponent_code が必要です")
+		common.RespondEphemeral(s, i, "opponent_code が必要です")
 		return
 	}
+	common.Logf("[sf6][history] start guild=%s user=%s subject=%s opponent=%s", i.GuildID, userID, subjectCode, opponentCode)
 
-	ctx := context.Background()
+	ctx, cancel := common.CommandContextForInteraction(s, i)
+	defer cancel()
 	if sid, _, ok, err := r.resolveSIDFromMention(ctx, i.GuildID, opponentCode); ok {
 		if err != nil {
-			respondEphemeral(s, i, err.Error())
+			common.RespondEphemeral(s, i, err.Error())
 			return
 		}
 		opponentCode = sid
 	}
 	subjectSID, err := r.resolveSubjectSID(ctx, i.GuildID, userID, subjectCode)
 	if err != nil {
-		respondEphemeral(s, i, err.Error())
+		common.RespondEphemeral(s, i, err.Error())
 		return
 	}
 
-	if err := deferPublic(s, i); err != nil {
-		respondEphemeral(s, i, "受付に失敗しました")
+	if err := common.DeferPublic(s, i); err != nil {
+		common.RespondEphemeral(s, i, "受付に失敗しました")
 		return
 	}
+	common.Logf("[sf6][history] deferred guild=%s user=%s subject=%s opponent=%s", i.GuildID, userID, subjectSID, opponentCode)
+	if err := r.fetchLatestForStats(ctx, i.GuildID, userID, subjectSID); err != nil {
+		_ = common.EditInteractionResponse(s, i, "最新取得に失敗しました", nil, nil)
+		common.FollowupEphemeral(s, i, "最新取得に失敗: "+err.Error())
+		return
+	}
+	common.Logf("[sf6][history] fetch ok guild=%s user=%s subject=%s opponent=%s", i.GuildID, userID, subjectSID, opponentCode)
 
 	embed, components, err := r.buildSF6HistoryEmbed(ctx, s, i.GuildID, userID, subjectSID, opponentCode, 1)
 	if err != nil {
-		followupEphemeral(s, i, "履歴取得に失敗: "+err.Error())
+		_ = common.EditInteractionResponse(s, i, "履歴取得に失敗しました", nil, nil)
+		common.FollowupEphemeral(s, i, "履歴取得に失敗: "+err.Error())
 		return
 	}
-	followupPublicEmbed(s, i, "", embed, components)
+	if err := common.EditInteractionResponse(s, i, "", embed, components); err != nil {
+		common.Logf("[sf6][history] edit response failed: guild=%s user=%s err=%v", i.GuildID, userID, err)
+		common.FollowupPublicEmbed(s, i, "", embed, components)
+	} else {
+		common.Logf("[sf6][history] response updated guild=%s user=%s", i.GuildID, userID)
+	}
 }
 
-func (r *Router) handleSF6HistoryComponent(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+func (r *Handler) handleSF6HistoryComponent(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
 	ownerID, subjectSID, opponentSID, page, ok := parseSF6HistoryCustomID(customID)
 	if !ok {
-		respondEphemeral(s, i, "不正な操作です")
+		common.RespondEphemeral(s, i, "不正な操作です")
 		return
 	}
-	if ownerID != "" && interactionUserID(i) != ownerID {
-		respondEphemeral(s, i, "この操作は発行者のみ実行できます")
+	if ownerID != "" && common.InteractionUserID(i) != ownerID {
+		common.RespondEphemeral(s, i, "この操作は発行者のみ実行できます")
 		return
 	}
-	ctx := context.Background()
+	ctx, cancel := common.CommandContextForInteraction(s, i)
+	defer cancel()
 	embed, components, err := r.buildSF6HistoryEmbed(ctx, s, i.GuildID, ownerID, subjectSID, opponentSID, page)
 	if err != nil {
-		respondEphemeral(s, i, "履歴取得に失敗: "+err.Error())
+		common.RespondEphemeral(s, i, "履歴取得に失敗: "+err.Error())
 		return
 	}
 	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -103,7 +121,7 @@ func (r *Router) handleSF6HistoryComponent(s *discordgo.Session, i *discordgo.In
 	})
 }
 
-func (r *Router) buildSF6HistoryEmbed(ctx context.Context, s *discordgo.Session, guildID, ownerID, subjectSID, opponentSID string, page int) (*discordgo.MessageEmbed, []discordgo.MessageComponent, error) {
+func (r *Handler) buildSF6HistoryEmbed(ctx context.Context, s *discordgo.Session, guildID, ownerID, subjectSID, opponentSID string, page int) (*discordgo.MessageEmbed, []discordgo.MessageComponent, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -131,7 +149,7 @@ func (r *Router) buildSF6HistoryEmbed(ctx context.Context, s *discordgo.Session,
 	embed := &discordgo.MessageEmbed{
 		Title:       "SF6 History",
 		Description: desc,
-		Color:       0x2b6cb0,
+		Color:       0xF1C40F,
 		Footer: &discordgo.MessageEmbedFooter{
 			Text: fmt.Sprintf("Page %d/%d • Total %d", page, totalPages, total),
 		},
@@ -162,7 +180,7 @@ func buildSF6HistoryDescription(subject, opponent sf6HistoryUser, rows []domain.
 	return strings.Join(lines, "\n\n")
 }
 
-func (r *Router) buildSF6HistoryUser(ctx context.Context, s *discordgo.Session, guildID, fighterID string) sf6HistoryUser {
+func (r *Handler) buildSF6HistoryUser(ctx context.Context, s *discordgo.Session, guildID, fighterID string) sf6HistoryUser {
 	info := sf6HistoryUser{SID: fighterID}
 	if fighterID == "" {
 		return info
@@ -249,31 +267,41 @@ func formatSF6Character(name string) string {
 }
 
 func buildSF6HistoryButtons(ownerID, subjectSID, opponentSID string, page, totalPages int) []discordgo.MessageComponent {
+	firstPage := 1
+	lastPage := totalPages
 	prevPage := page - 1
 	nextPage := page + 1
 	prevDisabled := page <= 1
 	nextDisabled := page >= totalPages
-	if prevPage < 1 {
-		prevPage = 1
-	}
-	if nextPage > totalPages {
-		nextPage = totalPages
-	}
-	prevID := buildSF6HistoryCustomID(ownerID, subjectSID, opponentSID, prevPage)
-	nextID := buildSF6HistoryCustomID(ownerID, subjectSID, opponentSID, nextPage)
+	firstID := buildSF6HistoryCustomIDWithAction("first", ownerID, subjectSID, opponentSID, firstPage)
+	prevID := buildSF6HistoryCustomIDWithAction("prev", ownerID, subjectSID, opponentSID, maxInt(prevPage, 1))
+	nextID := buildSF6HistoryCustomIDWithAction("next", ownerID, subjectSID, opponentSID, minInt(nextPage, totalPages))
+	lastID := buildSF6HistoryCustomIDWithAction("last", ownerID, subjectSID, opponentSID, lastPage)
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
-					Label:    "前へ",
+					Label:    "⏮ 最初",
+					Style:    discordgo.SecondaryButton,
+					CustomID: firstID,
+					Disabled: prevDisabled,
+				},
+				discordgo.Button{
+					Label:    "◀ 前へ",
 					Style:    discordgo.SecondaryButton,
 					CustomID: prevID,
 					Disabled: prevDisabled,
 				},
 				discordgo.Button{
-					Label:    "次へ",
+					Label:    "次へ ▶",
 					Style:    discordgo.SecondaryButton,
 					CustomID: nextID,
+					Disabled: nextDisabled,
+				},
+				discordgo.Button{
+					Label:    "最後 ⏭",
+					Style:    discordgo.SecondaryButton,
+					CustomID: lastID,
 					Disabled: nextDisabled,
 				},
 			},
@@ -282,23 +310,34 @@ func buildSF6HistoryButtons(ownerID, subjectSID, opponentSID string, page, total
 }
 
 func buildSF6HistoryCustomID(ownerID, subjectSID, opponentSID string, page int) string {
+	return buildSF6HistoryCustomIDWithAction("page", ownerID, subjectSID, opponentSID, page)
+}
+
+func buildSF6HistoryCustomIDWithAction(action, ownerID, subjectSID, opponentSID string, page int) string {
 	if page <= 0 {
 		page = 1
 	}
-	return "sf6_history_page:" + ownerID + ":" + subjectSID + ":" + opponentSID + ":" + strconv.Itoa(page)
+	return "sf6_history_page:" + action + ":" + ownerID + ":" + subjectSID + ":" + opponentSID + ":" + strconv.Itoa(page)
 }
 
 func parseSF6HistoryCustomID(customID string) (string, string, string, int, bool) {
 	parts := strings.Split(customID, ":")
-	if len(parts) != 5 {
+	if len(parts) != 5 && len(parts) != 6 {
 		return "", "", "", 0, false
 	}
 	if parts[0] != "sf6_history_page" {
 		return "", "", "", 0, false
 	}
-	page, err := strconv.Atoi(parts[4])
+	if len(parts) == 5 {
+		page, err := strconv.Atoi(parts[4])
+		if err != nil || page <= 0 {
+			return "", "", "", 0, false
+		}
+		return parts[1], parts[2], parts[3], page, true
+	}
+	page, err := strconv.Atoi(parts[5])
 	if err != nil || page <= 0 {
 		return "", "", "", 0, false
 	}
-	return parts[1], parts[2], parts[3], page, true
+	return parts[2], parts[3], parts[4], page, true
 }

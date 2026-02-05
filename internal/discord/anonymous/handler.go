@@ -1,4 +1,4 @@
-package discord
+package anonymous
 
 import (
 	"bytes"
@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"backend/internal/discord/common"
 	"backend/internal/domain"
+	"backend/internal/service"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -19,7 +21,15 @@ const (
 	anonUsername    = "anonymous"
 )
 
-func (r *Router) HandleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+type Handler struct {
+	AnonymousChannelService service.AnonymousChannelService
+}
+
+func NewHandler(anonymousChannelService service.AnonymousChannelService) *Handler {
+	return &Handler{AnonymousChannelService: anonymousChannelService}
+}
+
+func (r *Handler) HandleMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m == nil || m.Message == nil || m.Author == nil {
 		return
 	}
@@ -57,10 +67,18 @@ func (r *Router) HandleMessageCreate(s *discordgo.Session, m *discordgo.MessageC
 	}
 }
 
-func (r *Router) handleAnon(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (r *Handler) HandleAnon(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	r.handleAnon(s, i)
+}
+
+func (r *Handler) HandleAnonChannel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	r.handleAnonChannel(s, i)
+}
+
+func (r *Handler) handleAnon(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
+		common.RespondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 
@@ -81,46 +99,47 @@ func (r *Router) handleAnon(s *discordgo.Session, i *discordgo.InteractionCreate
 
 	attachments := resolveAttachments(data.Resolved, attachmentIDs)
 	if content == "" && len(attachments) == 0 {
-		respondEphemeral(s, i, "本文か添付のどちらかが必要")
+		common.RespondEphemeral(s, i, "本文か添付のどちらかが必要")
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := common.CommandContextForInteraction(s, i)
+	defer cancel()
 	params, err := buildWebhookParams(ctx, content, attachments)
 	if err != nil {
-		respondEphemeral(s, i, "匿名投稿の準備に失敗した")
+		common.RespondEphemeral(s, i, "匿名投稿の準備に失敗した")
 		return
 	}
 
 	webhook, err := r.getOrCreateWebhook(s, i.ChannelID)
 	if err != nil {
-		respondEphemeral(s, i, "Webhook の準備に失敗した")
+		common.RespondEphemeral(s, i, "Webhook の準備に失敗した")
 		return
 	}
 
 	if _, err := s.WebhookExecute(webhook.ID, webhook.Token, true, params); err != nil {
-		respondEphemeral(s, i, "匿名投稿に失敗した")
+		common.RespondEphemeral(s, i, "匿名投稿に失敗した")
 		return
 	}
 
-	respondEphemeral(s, i, "投稿しました")
+	common.RespondEphemeral(s, i, "投稿しました")
 }
 
-func (r *Router) handleAnonChannel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (r *Handler) handleAnonChannel(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ApplicationCommandData()
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
+		common.RespondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 
 	if len(data.Options) == 0 {
-		respondEphemeral(s, i, "サブコマンドが必要")
+		common.RespondEphemeral(s, i, "サブコマンドが必要")
 		return
 	}
 
 	sub := data.Options[0]
 	if sub.Type != discordgo.ApplicationCommandOptionSubCommand {
-		respondEphemeral(s, i, "サブコマンドが必要")
+		common.RespondEphemeral(s, i, "サブコマンドが必要")
 		return
 	}
 
@@ -134,7 +153,7 @@ func (r *Router) handleAnonChannel(s *discordgo.Session, i *discordgo.Interactio
 		}
 	}
 	if channelID == "" {
-		respondEphemeral(s, i, "channel が必要")
+		common.RespondEphemeral(s, i, "channel が必要")
 		return
 	}
 
@@ -142,7 +161,7 @@ func (r *Router) handleAnonChannel(s *discordgo.Session, i *discordgo.Interactio
 	case "add":
 		webhook, err := r.getOrCreateWebhook(s, channelID)
 		if err != nil {
-			respondEphemeral(s, i, "Webhook の準備に失敗した")
+			common.RespondEphemeral(s, i, "Webhook の準備に失敗した")
 			return
 		}
 
@@ -153,38 +172,41 @@ func (r *Router) handleAnonChannel(s *discordgo.Session, i *discordgo.Interactio
 			WebhookToken: webhook.Token,
 		}
 
-		if err := r.AnonymousChannelService.Upsert(context.Background(), ac); err != nil {
-			respondEphemeral(s, i, "登録に失敗した")
+		ctx, cancel := common.CommandContextForInteraction(s, i)
+		defer cancel()
+		if err := r.AnonymousChannelService.Upsert(ctx, ac); err != nil {
+			common.RespondEphemeral(s, i, "登録に失敗した")
 			return
 		}
-		respondEphemeral(s, i, "匿名チャンネルに登録しました")
+		common.RespondEphemeral(s, i, "匿名チャンネルに登録しました")
 	case "remove":
-		ctx := context.Background()
+		ctx, cancel := common.CommandContextForInteraction(s, i)
+		defer cancel()
 		ac, err := r.AnonymousChannelService.Get(ctx, i.GuildID, channelID)
 		if err != nil {
-			respondEphemeral(s, i, "取得に失敗した")
+			common.RespondEphemeral(s, i, "取得に失敗した")
 			return
 		}
 		if ac == nil {
-			respondEphemeral(s, i, "対象チャンネルは未登録")
+			common.RespondEphemeral(s, i, "対象チャンネルは未登録")
 			return
 		}
 
 		if err := r.AnonymousChannelService.Delete(ctx, i.GuildID, channelID); err != nil {
-			respondEphemeral(s, i, "削除に失敗した")
+			common.RespondEphemeral(s, i, "削除に失敗した")
 			return
 		}
 		if ac.WebhookID != "" {
 			_ = s.WebhookDelete(ac.WebhookID)
 		}
 
-		respondEphemeral(s, i, "匿名チャンネルを解除しました")
+		common.RespondEphemeral(s, i, "匿名チャンネルを解除しました")
 	default:
-		respondEphemeral(s, i, "不明なサブコマンド")
+		common.RespondEphemeral(s, i, "不明なサブコマンド")
 	}
 }
 
-func (r *Router) executeAnonymousWebhook(ctx context.Context, s *discordgo.Session, channelID string, ac *domain.AnonymousChannel, params *discordgo.WebhookParams) error {
+func (r *Handler) executeAnonymousWebhook(ctx context.Context, s *discordgo.Session, channelID string, ac *domain.AnonymousChannel, params *discordgo.WebhookParams) error {
 	if ac == nil {
 		return errors.New("anonymous channel not found")
 	}
@@ -213,7 +235,7 @@ func (r *Router) executeAnonymousWebhook(ctx context.Context, s *discordgo.Sessi
 	return err
 }
 
-func (r *Router) getOrCreateWebhook(s *discordgo.Session, channelID string) (*discordgo.Webhook, error) {
+func (r *Handler) getOrCreateWebhook(s *discordgo.Session, channelID string) (*discordgo.Webhook, error) {
 	hooks, err := s.ChannelWebhooks(channelID)
 	if err == nil {
 		for _, h := range hooks {
@@ -303,14 +325,4 @@ func downloadAttachment(ctx context.Context, url string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
-}
-
-func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) {
-	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
 }

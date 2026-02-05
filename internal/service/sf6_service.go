@@ -24,6 +24,7 @@ type SF6Service interface {
 	StatsByOpponentCount(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit int) ([]domain.SF6BattleStatRow, error)
 	HistoryByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string, limit, offset int) ([]domain.SF6BattleHistoryRow, error)
 	CountByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) (int, error)
+	BattleTimesByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) ([]time.Time, error)
 }
 
 type sf6Service struct {
@@ -121,6 +122,13 @@ func (s *sf6Service) CountByOpponent(ctx context.Context, guildID, subjectFighte
 		return 0, errors.New("battle repo not configured")
 	}
 	return s.battleRepo.CountByOpponent(ctx, guildID, subjectFighterID, opponentFighterID)
+}
+
+func (s *sf6Service) BattleTimesByOpponent(ctx context.Context, guildID, subjectFighterID, opponentFighterID string) ([]time.Time, error) {
+	if s.battleRepo == nil {
+		return nil, errors.New("battle repo not configured")
+	}
+	return s.battleRepo.BattleTimesByOpponent(ctx, guildID, subjectFighterID, opponentFighterID)
 }
 
 func buildBattleFromReplay(guildID, userID, sid, ownerKind string, entry buckler.ReplayEntry) (domain.SF6Battle, bool) {

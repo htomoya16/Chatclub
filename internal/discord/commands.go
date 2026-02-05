@@ -90,6 +90,25 @@ func Commands() []*discordgo.ApplicationCommand {
 						},
 					},
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Name:        "set",
+					Description: "Stats grouped by <=30min intervals.",
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "opponent_code",
+							Description: "Opponent SF6 user code (sid)",
+							Required:    true,
+						},
+						{
+							Type:        discordgo.ApplicationCommandOptionString,
+							Name:        "subject_code",
+							Description: "Subject SF6 user code (sid)",
+							Required:    false,
+						},
+					},
+				},
 			},
 		},
 		{

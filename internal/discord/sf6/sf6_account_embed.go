@@ -1,12 +1,14 @@
-package discord
+package sf6
 
 import (
-	"backend/internal/buckler"
 	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"backend/internal/buckler"
+	"backend/internal/discord/common"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -42,7 +44,7 @@ func sf6LinkButtons(linked bool, ownerUserID string) []discordgo.MessageComponen
 	}
 }
 
-func (r *Router) buildAccountEmbed(ctx context.Context, title, guildID, userID string, user *discordgo.User, totalSaved, pagesFetched int, reassigned int64) (*discordgo.MessageEmbed, bool, error) {
+func (r *Handler) buildAccountEmbed(ctx context.Context, title, guildID, userID string, user *discordgo.User, totalSaved, pagesFetched int, reassigned int64) (*discordgo.MessageEmbed, bool, error) {
 	account, err := r.SF6AccountService.GetByUser(ctx, guildID, userID)
 	if err != nil {
 		return nil, false, err
@@ -62,7 +64,7 @@ func (r *Router) buildAccountEmbed(ctx context.Context, title, guildID, userID s
 	if linked {
 		color = sf6ColorLinked
 	}
-	displayName := discordDisplayName(user)
+	displayName := common.DiscordDisplayName(user)
 	statusBadge := "❌"
 	if linked {
 		statusBadge = "✅"
@@ -71,7 +73,7 @@ func (r *Router) buildAccountEmbed(ctx context.Context, title, guildID, userID s
 	if linked && r.SF6Service != nil {
 		c, err := r.SF6Service.FetchCard(ctx, userCode)
 		if err != nil {
-			if sf6DebugEnabled() {
+			if common.DebugEnabled() {
 				fmt.Printf("[sf6][embed] card fetch failed: user=%s sid=%s err=%v\n", userID, userCode, err)
 			}
 		} else {
@@ -129,7 +131,7 @@ func (r *Router) buildAccountEmbed(ctx context.Context, title, guildID, userID s
 	})
 	if favoriteChar != "" {
 		imageURL := characterImageURL(favoriteChar)
-		if sf6DebugEnabled() {
+		if common.DebugEnabled() {
 			fmt.Printf("[sf6][embed] character image: user=%s sid=%s tool=%s url=%s\n", userID, userCode, favoriteChar, imageURL)
 		}
 		embed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: imageURL}

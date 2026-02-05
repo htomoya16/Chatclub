@@ -1,52 +1,54 @@
-package discord
+package sf6
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"backend/internal/discord/common"
+
 	"github.com/bwmarrin/discordgo"
 )
 
-func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (r *Handler) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.GuildID == "" {
-		respondEphemeral(s, i, "guildのみ対応")
+		common.RespondEphemeral(s, i, "guildのみ対応")
 		return
 	}
 	if r.SF6Service == nil || r.SF6AccountService == nil || r.SF6FriendService == nil {
-		respondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
+		common.RespondEphemeral(s, i, "sf6機能が無効です（Buckler設定未完）")
 		return
 	}
 
-	userID := interactionUserID(i)
+	userID := common.InteractionUserID(i)
 	if userID == "" {
-		respondEphemeral(s, i, "user_idの取得に失敗")
+		common.RespondEphemeral(s, i, "user_idの取得に失敗")
 		return
 	}
 	if !sf6FetchAllowed(i) {
-		respondEphemeral(s, i, "管理者または許可ユーザーのみ実行できます")
+		common.RespondEphemeral(s, i, "管理者または許可ユーザーのみ実行できます")
 		return
 	}
 
-	if err := deferEphemeral(s, i); err != nil {
-		respondEphemeral(s, i, "受付に失敗しました")
+	if err := common.DeferEphemeral(s, i); err != nil {
+		common.RespondEphemeral(s, i, "受付に失敗しました")
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := common.CommandContextForInteraction(s, i)
+	defer cancel()
 	accounts, err := r.SF6AccountService.ListByGuild(ctx, i.GuildID)
 	if err != nil {
-		followupEphemeral(s, i, "取得に失敗: "+err.Error())
+		common.FollowupEphemeral(s, i, "取得に失敗: "+err.Error())
 		return
 	}
 	friends, err := r.SF6FriendService.ListByGuild(ctx, i.GuildID)
 	if err != nil {
-		followupEphemeral(s, i, "取得に失敗: "+err.Error())
+		common.FollowupEphemeral(s, i, "取得に失敗: "+err.Error())
 		return
 	}
 	if len(accounts) == 0 && len(friends) == 0 {
-		followupEphemeral(s, i, "対象アカウント/フレンドがありません")
+		common.FollowupEphemeral(s, i, "対象アカウント/フレンドがありません")
 		return
 	}
 
@@ -104,11 +106,11 @@ func (r *Router) handleSF6Fetch(s *discordgo.Session, i *discordgo.InteractionCr
 
 	msg := fmt.Sprintf("取得完了。accounts=%d friends=%d skipped=%d saved=%d pages=%d errors=%d",
 		accountsFetched, friendsFetched, skippedFriends, totalSaved, pagesFetched, fetchErrors)
-	followupEphemeral(s, i, msg)
+	common.FollowupEphemeral(s, i, msg)
 }
 
 func sf6FetchAllowed(i *discordgo.InteractionCreate) bool {
-	userID := interactionUserID(i)
+	userID := common.InteractionUserID(i)
 	if userID == "" {
 		return false
 	}
