@@ -3,6 +3,7 @@ package main
 import (
 	"backend/database"
 	"backend/internal/api"
+	"backend/internal/buckler"
 	"backend/internal/discord"
 	"backend/internal/repository"
 	"backend/internal/service"
@@ -12,11 +13,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 )
 
 func main() {
@@ -30,12 +34,30 @@ func main() {
 	healthRepo := repository.NewHealthRepository(db)
 	healthSevice := service.NewHealthService(healthRepo)
 	healthHandler := api.NewHealthHandler(healthSevice)
-
-	anonRepo := repository.NewAnonymousChannelRepository(db)
-	anonService := service.NewAnonymousChannelService(anonRepo)
+	sf6AssetHandler := api.NewSF6AssetHandler()
 
 	// Echo インスタンスを作成
 	e := echo.New()
+	e.Logger.SetLevel(log.INFO)
+	e.Logger.SetOutput(os.Stdout)
+
+	anonRepo := repository.NewAnonymousChannelRepository(db)
+	anonService := service.NewAnonymousChannelService(anonRepo)
+	sf6AccountRepo := repository.NewSF6AccountRepository(db)
+	sf6BattleRepo := repository.NewSF6BattleRepository(db)
+	sf6FriendRepo := repository.NewSF6FriendRepository(db)
+	sf6SessionRepo := repository.NewSF6SessionRepository(db)
+	sf6AccountService := service.NewSF6AccountService(sf6AccountRepo, sf6FriendRepo, sf6BattleRepo)
+	sf6FriendService := service.NewSF6FriendService(sf6FriendRepo, sf6AccountRepo, sf6BattleRepo)
+	sf6SessionService := service.NewSF6SessionService(sf6SessionRepo)
+	var sf6Service service.SF6Service
+	if cfg, err := buckler.LoadConfigFromEnv(); err != nil {
+		e.Logger.Warn("buckler config missing: sf6 commands disabled: ", err)
+	} else if bclient, err := buckler.NewClient(cfg); err != nil {
+		e.Logger.Error("buckler client init failed: ", err)
+	} else {
+		sf6Service = service.NewSF6Service(bclient, sf6BattleRepo, sf6AccountRepo)
+	}
 
 	// ミドルウェア
 	// 起動時のASCIIバナーを消す
@@ -50,7 +72,7 @@ func main() {
 	)
 
 	// ルート設定
-	api.SetupRoutes(e, healthHandler)
+	api.SetupRoutes(e, healthHandler, sf6AssetHandler)
 
 	// ポート設定
 	port := os.Getenv("PORT")
@@ -82,7 +104,7 @@ func main() {
 	// ========= Discord セッション準備 =========
 	discordToken := os.Getenv("DISCORD_TOKEN")
 	discordAppID := os.Getenv("DISCORD_APP_ID")
-	discordGuildID := os.Getenv("DISCORD_GUILD_ID") // dev中は Guild 指定推奨
+	discordGuildIDs := envStringList("DISCORD_GUILD_IDS") // 空ならグローバルコマンド
 
 	var dSession discord.Session
 	if discordToken != "" {
@@ -110,7 +132,7 @@ func main() {
 
 	// Discord起動
 	if dSession != nil {
-		router := discord.NewRouter(anonService)
+	router := discord.NewRouter(anonService, sf6AccountService, sf6FriendService, sf6Service, sf6SessionService)
 		dSession.AddHandler(router.HandleInteraction)
 		dSession.AddHandler(router.HandleMessageCreate)
 
@@ -123,12 +145,23 @@ func main() {
 				return
 			}
 
-			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 5*time.Second)
+			ctxCmd, cancelCmd := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancelCmd()
 
-			if err := dSession.RegisterCommands(ctxCmd, discordAppID, discordGuildID); err != nil {
-				errCh <- fmt.Errorf("discord register commands: %w", err)
-				return
+			if envBool("DISCORD_REGISTER_COMMANDS", false) {
+				if len(discordGuildIDs) == 0 {
+					e.Logger.Infof("discord register commands: scope=global")
+					if err := dSession.RegisterCommands(ctxCmd, discordAppID, ""); err != nil {
+						e.Logger.Warnf("discord register commands failed: %v", err)
+					}
+				} else {
+					e.Logger.Infof("discord register commands: scope=guilds count=%d", len(discordGuildIDs))
+					for _, guildID := range discordGuildIDs {
+						if err := dSession.RegisterCommands(ctxCmd, discordAppID, guildID); err != nil {
+							e.Logger.Warnf("discord register commands failed: guild=%s err=%v", guildID, err)
+						}
+					}
+				}
 			}
 
 			fmt.Printf("startup complete: http=:%s, discord=online\n", port)
@@ -140,6 +173,15 @@ func main() {
 	// OSシグナル（Ctrl+C の SIGINT と SIGTERM）を受けると自動で Done になるコンテキストを作る
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if sf6Service != nil {
+		pollInterval := envDuration("SF6_POLL_INTERVAL", 4*time.Hour)
+		maxPages := envInt("SF6_POLL_MAX_PAGES", 10)
+		accountDelayMax := envDuration("SF6_POLL_ACCOUNT_DELAY_MAX", 3*time.Second)
+		go service.RunSF6Poller(ctx, pollInterval, maxPages, accountDelayMax, sf6AccountRepo, sf6FriendRepo, sf6Service, e.Logger)
+	} else {
+		fmt.Printf("sf6 poller disabled: sf6Service is nil (check CAPCOM_EMAIL/CAPCOM_PASSWORD and Buckler config)")
+	}
 
 	// 「シグナルでの終了要求」か「サーバ起動側のエラー」のどちらが先かを競合待ちする
 	select {
@@ -183,4 +225,58 @@ func main() {
 
 	e.Logger.Info("Server stopped")
 
+}
+
+func envDuration(key string, def time.Duration) time.Duration {
+	val := os.Getenv(key)
+	if val == "" {
+		return def
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return def
+	}
+	return d
+}
+
+func envInt(key string, def int) int {
+	val := os.Getenv(key)
+	if val == "" {
+		return def
+	}
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return def
+	}
+	return parsed
+}
+
+func envBool(key string, def bool) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if val == "" {
+		return def
+	}
+	return val == "1" || val == "true" || val == "yes"
+}
+
+func envStringList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		val := strings.TrimSpace(part)
+		if val == "" {
+			continue
+		}
+		if _, ok := seen[val]; ok {
+			continue
+		}
+		seen[val] = struct{}{}
+		out = append(out, val)
+	}
+	return out
 }

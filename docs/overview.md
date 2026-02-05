@@ -86,7 +86,23 @@ Discord 上で取得可能なユーザーのゲーム活動情報をもとに、
 
 ---
 
-### 5.2 外部サービスログ（検討中）
+### 5.2 SF6 Buckler 対戦ログ
+
+Street Fighter 6 の Buckler’s Boot Camp にある対戦履歴から、
+**カスタムマッチの戦績**を取得・集計する機能である。
+
+* 友達登録（CFN fighter_id）
+* Buckler Battle Log の定期取得
+* セッション監視によるリアルタイム寄り集計
+* 勝率・キャラ別・セッション統計の可視化
+
+詳細は以下を参照する。
+
+* `docs/sf6-buckler/overview.md`
+
+---
+
+### 5.3 外部サービスログ（検討中）
 
 Steam や Valorant など、
 Discord 外部のサービスに由来する活動ログを扱う拡張領域である。

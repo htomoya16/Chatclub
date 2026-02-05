@@ -1,7 +1,7 @@
-# Chatclub Backend
+# Chatclub
 
-**Chatclub Backend** は、Discord サーバ内の**通話活動（VC）**や**ゲーム活動**を記録・集計し、  
-Discord Bot と Web から可視化するためのバックエンドシステムである。
+**Chatclub** は、Street Fighter 6（Buckler）のカスタム対戦ログを取得・集計し、  
+Discord Bot から戦績・履歴・セッションを見える化するためのバックエンドである。
 
 ---
 
@@ -17,145 +17,50 @@ Discord Bot と Web から可視化するためのバックエンドシステム
 | Discord連携 | [discordgo](https://github.com/bwmarrin/discordgo) |
 
 
-## 🐳 Dockerセットアップ
+## 🎥 Demo
 
-### 1. リポジトリ取得
-```bash
-git clone <YOUR_REPO_URL>
-cd Chatclub
+- 動画URL（準備中）
+
+## 📌 招待URL
+
+Discord Bot をサーバへ招待する URL をここに置く。  
+（`<APP_ID>` を自分の Application ID に置き換える）
+
+```
+https://discord.com/oauth2/authorize?client_id=1461387682172375286&permissions=540142592&integration_type=0&scope=bot+applications.commands
 ```
 
-### 2. 環境変数の設定
+## 🧭 セットアップ
 
-`.env.example`より`.env` ファイルを作成し、以下を設定する。
+セットアップ手順は docs に移動。
 
-```env
-# PostgreSQL
-POSTGRES_USER=chatclub_user
-POSTGRES_PASSWORD=changeme
-POSTGRES_DB=chatclub
-POSTGRES_PORT=5432
-POSTGRES_TZ=UTC
+- `docs/setup.md`
 
-# アプリ
-APP_PORT=8080
-DB_HOST=postgres
-DB_PORT=5432
+## 🧩 コマンド一覧（できること）
 
-# DISCORD関連
-DISCORD_TOKEN=your_discord_bot_token
-DISCORD_APP_ID=your_discord_app_id
-DISCORD_GUILD_ID=your_test_guild_id
-```
+### 基本
+- `/ping` : Bot の生存確認。
+- `/anon` : 匿名メッセージ投稿（本文・画像添付対応）。
+![anon command](images/anon-command.png)
+![anon result](images/anon-result.png)
+- `/anon-channel add/remove` : 匿名チャンネルの登録・解除。
 
-### 3. プロジェクトを起動(開発環境)
-#### 初回
-```bash
-# Dockerコンテナを起動
-docker compose --profile dev up --build
+### SF6（Buckler）
+※ SF6系コマンドは Street Fighter 6 のアカウント連携が必要。  
+未連携の場合は使用できない。  
+Buckler: https://www.streetfighter.com/6/buckler/ja-jp
 
-# バックグラウンドで起動する場合
-docker compose --profile dev up -d --build
-```
-
-#### 初回以降
-```bash
-# Dockerコンテナを起動
-docker compose --profile dev up
-
-# バックグラウンドで起動する場合
-docker compose --profile dev up -d
-```
-
-#### 止め方
-```bash
-docker compose --profile dev down
-```
-
-### 4. プロジェクトを起動(本番環境)
-#### 初回
-```bash
-# Dockerコンテナを起動
-docker compose --profile prod up --build
-
-# バックグラウンドで起動する場合
-docker compose --profile prod up -d --build
-```
-
-#### 初回以降
-```bash
-# Dockerコンテナを起動
-docker compose --profile prod up
-
-# バックグラウンドで起動する場合
-docker compose --profile prod up -d
-```
-
-#### 止め方
-```bash
-docker compose --profile prod down
-```
-
-### 5. Atlas によるマイグレーション適用
-#### Atlas のインストール（WSL 上で実行）
-```bash
-curl -sSf https://atlasgo.sh | sh
-```
-
-####　マイグレーション適用(4. でdocker compose upした状態)
-```bash
-atlas migrate apply --env local
-```
-
-## 🤖 Discord Bot セットアップ
-
-このバックエンドは Discord Bot を通じて操作される。  
-以下の手順で Discord Developer Portal 上に Bot を作成し、環境変数に必要な値を設定する。
-
-### 1. アプリケーションの作成
-
-1. [Discord Developer Portal](https://discord.com/developers/applications) にアクセスし、ログインする。  
-2. 「**New Application**」をクリックして新しいアプリケーションを作成。  
-   名前は例として `Chatclub Bot` にしておくと分かりやすい。  
-3. 作成後、左メニューから **Bot** を選び、「Add Bot」→「Yes, do it!」をクリック。  
-4. 作成された Bot のトークンをコピーして `.env` に設定する(Dockerセットアップ2.)。
-```env
-DISCORD_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-### 2. Application ID と Guild ID の取得
-
-#### (1) Application ID
-
-1. Developer Portal のアプリケーションページで`Chatclub Bot`を選択し **General Information** を開く。  
-2. 「Application ID」をコピーして `.env` の `DISCORD_APP_ID` に設定する。
-
-#### (2) Guild ID（サーバID）
-
-1. Discord クライアントの「設定 → 詳細設定」から **開発者モード** を有効にする。  
-2. Bot をテストする Discord サーバで、サーバアイコンを右クリック → 「IDをコピー」。  
-3. `.env` の `DISCORD_GUILD_ID` に貼り付ける。
-
-### 3. Bot をサーバに招待
-
-1. Developer Portal の **OAuth2 → URL Generator** を開く。  
-2. 「**bot**」と「**applications.commands**」にチェックを入れる。  
-3. 「Bot Permissions」で以下を選択：
-   - Send Messages  
-   - Read Message History
-   - View Channels  
-   - Manage Messages  
-   - Use Slash Commands  
-4. 生成された URL をブラウザで開き、テスト用サーバに Bot を追加する。
-
-### 4. Intent の設定
-
-Bot がメッセージ内容やメンバー情報にアクセスできるようにするため、  
-**Bot → Privileged Gateway Intents** で以下を有効化しておく。
-
-- ✅ **MESSAGE CONTENT INTENT**  
-- ✅ **SERVER MEMBERS INTENT**
-
-### 5. 動作確認
-
-環境変数が設定された状態でアプリを起動(Dockerセットアップ 3.で```docker compose up --build```する)後、Discord サーバで Bot がオンラインになれば成功。
+- `/sf6_account` : 連携状況の表示・連携/解除ボタンの提示。自身の Street Fighter 6 アカウントを連携・解除できる。
+![sf6 account](images/sf6-account.png)
+- `/sf6_friend` : フレンド一覧と追加/削除。フレンドの Street Fighter 6 アカウントを連携できる。
+![sf6 friend](images/sf6-friend.png)
+- `/sf6_fetch` : 対戦ログの手動取得（管理者/許可ユーザー）。
+- `/sf6_stats range` : 期間指定の戦績集計（JST）。
+![sf6 stats range](images/sf6-stats-range.png)
+- `/sf6_stats count` : 直近N戦の勝率などを集計(画像は20戦)。
+![sf6 stats count](images/sf6-stats-count.png)
+- `/sf6_stats set` : 連戦を1セットとして勝率などを集計（30分以内の試合間隔を同一セット扱い）。一番直近の連戦から過去の連戦まで確認できる。
+![sf6 stats set](images/sf6-stats-set.png)
+- `/sf6_history` : 対戦履歴の一覧表示（ページング）。
+![sf6 history](images/sf6-history.png)
+- `/sf6_session start/end` : セッション開始/終了と集計。
