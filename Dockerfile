@@ -24,7 +24,7 @@ COPY . .
 
 # ビルド（静的リンク）　絶対パスをバイナリから取り除く
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -trimpath -o /app/main ./cmd/server
+    go build -trimpath -buildvcs=false -o /app/main ./cmd/server
 
 ####################
 # 実行ステージ（prod）
@@ -77,8 +77,8 @@ COPY . .
 ENV CGO_ENABLED=0 \
     PORT=8080
 
-# 40000 は delveのデバッグポート
-EXPOSE 8080 40000
+
+EXPOSE 8080
 
 # ホットリロード起動
 CMD ["air", "-c", ".air.toml"]

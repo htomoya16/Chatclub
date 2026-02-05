@@ -1,37 +1,30 @@
-name: yasairap
+name: chatclub
 
 volumes:
-  mysql_data:
+  postgres_data:
   go_build_cache:   # dev の go build キャッシュ
   go_mod_cache:     # dev の go mod キャッシュ
 
 networks:
-  yasairap_network:
+  chatclub_network:
     driver: bridge
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: yasairap_mysql
-    command: 
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --init-connect=SET NAMES utf8mb4
-      - --character-set-filesystem=utf8mb4
+  postgres:
+    image: postgres:16
+    container_name: chatclub_postgres
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      TZ: ${MYSQL_TZ:-UTC}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${POSTGRES_TZ:-UTC}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./config/mysql.cnf:/etc/mysql/conf.d/mysql.cnf
     networks:
-      - yasairap_network
+      - chatclub_network
 
   # 本番（Dockerfile のステージ: prod）
   app:
@@ -39,22 +32,39 @@ services:
     build:
       context: .
       target: prod
-    container_name: yasairap_backend
+    container_name: chatclub_backend
     depends_on:
-      - mysql
+      - postgres
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_APP_ID: ${DISCORD_APP_ID}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
-      DB_HOST: ${DB_HOST:-mysql}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_USER: ${MYSQL_USER}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-      DB_NAME: ${MYSQL_DATABASE}
+      DISCORD_GUILD_IDS: ${DISCORD_GUILD_IDS}
+      DISCORD_REGISTER_COMMANDS: ${DISCORD_REGISTER_COMMANDS:-false}
+      DISCORD_COMMAND_TIMEOUT: ${DISCORD_COMMAND_TIMEOUT:-20s}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
       PORT: ${APP_PORT:-8080}
+      CAPCOM_EMAIL: ${CAPCOM_EMAIL}
+      CAPCOM_PASSWORD: ${CAPCOM_PASSWORD}
+      BUCKLER_COOKIE_ENC_KEY: ${BUCKLER_COOKIE_ENC_KEY}
+      BUCKLER_LANG: ${BUCKLER_LANG:-ja-jp}
+      BUCKLER_BASE_URL: ${BUCKLER_BASE_URL:-https://www.streetfighter.com/6/buckler}
+      BUCKLER_CLIENT_ID: ${BUCKLER_CLIENT_ID}
+      BUCKLER_REDIRECT_URI: ${BUCKLER_REDIRECT_URI:-https://www.streetfighter.com/6/buckler/auth/login}
+      BUCKLER_SCOPE: ${BUCKLER_SCOPE:-openid}
+      BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
+      BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
+      BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
+      SF6_POLL_INTERVAL: ${SF6_POLL_INTERVAL:-4h}
+      SF6_POLL_MAX_PAGES: ${SF6_POLL_MAX_PAGES:-10}
+      SF6_POLL_ACCOUNT_DELAY_MAX: ${SF6_POLL_ACCOUNT_DELAY_MAX:-3s}
+      SF6_FETCH_ALLOWED_USER_IDS: ${SF6_FETCH_ALLOWED_USER_IDS:-}
     ports:
       - "${APP_PORT:-8080}:8080"
-    networks: [yasairap_network]
+    networks: [chatclub_network]
     restart: unless-stopped
 
   # 開発（Dockerfile のステージ: dev）
@@ -63,19 +73,36 @@ services:
     build:
       context: .
       target: dev
-    container_name: yasairap_dev_backend
+    container_name: chatclub_dev_backend
     depends_on:
-      - mysql
+      - postgres
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_APP_ID: ${DISCORD_APP_ID}
-      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
-      DB_HOST: ${DB_HOST:-mysql}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_USER: ${MYSQL_USER}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-      DB_NAME: ${MYSQL_DATABASE}
+      DISCORD_GUILD_IDS: ${DISCORD_GUILD_IDS}
+      DISCORD_REGISTER_COMMANDS: ${DISCORD_REGISTER_COMMANDS:-false}
+      DISCORD_COMMAND_TIMEOUT: ${DISCORD_COMMAND_TIMEOUT:-20s}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
       PORT: ${APP_PORT:-8080}
+      CAPCOM_EMAIL: ${CAPCOM_EMAIL}
+      CAPCOM_PASSWORD: ${CAPCOM_PASSWORD}
+      BUCKLER_COOKIE_ENC_KEY: ${BUCKLER_COOKIE_ENC_KEY}
+      BUCKLER_LANG: ${BUCKLER_LANG:-ja-jp}
+      BUCKLER_BASE_URL: ${BUCKLER_BASE_URL:-https://www.streetfighter.com/6/buckler}
+      BUCKLER_CLIENT_ID: ${BUCKLER_CLIENT_ID}
+      BUCKLER_REDIRECT_URI: ${BUCKLER_REDIRECT_URI:-https://www.streetfighter.com/6/buckler/auth/login}
+      BUCKLER_SCOPE: ${BUCKLER_SCOPE:-openid}
+      BUCKLER_AUDIENCE: ${BUCKLER_AUDIENCE:-urn:rebe:capcom:apis}
+      BUCKLER_RESPONSE_TYPE: ${BUCKLER_RESPONSE_TYPE:-code}
+      BUCKLER_DEBUG: ${BUCKLER_DEBUG:-0}
+      SF6_POLL_INTERVAL: ${SF6_POLL_INTERVAL:-4h}
+      SF6_POLL_MAX_PAGES: ${SF6_POLL_MAX_PAGES:-10}
+      SF6_POLL_ACCOUNT_DELAY_MAX: ${SF6_POLL_ACCOUNT_DELAY_MAX:-3s}
+      SF6_FETCH_ALLOWED_USER_IDS: ${SF6_FETCH_ALLOWED_USER_IDS:-}
     ports:
       - "${APP_PORT:-8080}:8080"
     # airに必要 ボリュームをマウント
@@ -83,5 +110,5 @@ services:
       - .:/app
       - go_build_cache:/root/.cache/go-build
       - go_mod_cache:/go/pkg/mod
-    networks: [yasairap_network]
+    networks: [chatclub_network]
     restart: unless-stopped
