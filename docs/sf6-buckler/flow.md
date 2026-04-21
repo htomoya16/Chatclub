@@ -40,9 +40,31 @@
 ### 0.3 Cookie運用
 
 - 必須Cookie: `buckler_id` / `buckler_r_id`
+- Cookieは手動で `.env` に貼り付けない
+- Cookieは `CAPCOM_EMAIL` / `CAPCOM_PASSWORD` による自動ログインで取得する
+- 取得したCookieは Go の `http.CookieJar` に保持し、Buckler 取得リクエストに自動付与する
 - Cookieは暗号化して保存し、失効時は再ログインで更新する
 - 2FA/CAPTCHAなしを前提（有効化された場合は自動ログイン不可）
 - `buckler_id` は `loginep` で仮発行 → `/auth/login` で上書きされることがある
+
+現状の実装メモ:
+
+- `BUCKLER_COOKIE_ENC_KEY` は Cookie の値ではなく、Cookie スナップショットを暗号化するための鍵
+- `BUCKLER_COOKIE_ENC_KEY` は 32 byte の raw/base64/hex を受け付ける
+- 生成例: `openssl rand -hex 32`
+- `ExportCookies` / `EncryptEnvelope` / `DecryptEnvelope` は用意されているが、サービス処理からの永続保存は未接続
+- そのため現在の本番動作では、Cookie はプロセス起動中のメモリ上 `CookieJar` に保持され、再起動後は必要に応じて再ログインする
+
+関連する環境変数:
+
+| 変数 | 必須 | 用途 |
+| --- | --- | --- |
+| `CAPCOM_EMAIL` | SF6取得時必須 | CAPCOM/CID ログイン用メールアドレス |
+| `CAPCOM_PASSWORD` | SF6取得時必須 | CAPCOM/CID ログイン用パスワード |
+| `BUCKLER_CLIENT_ID` | Buckler authorize fallback時に必要 | Buckler 側 OAuth authorize の client_id |
+| `BUCKLER_COOKIE_ENC_KEY` | Cookie永続化を使う場合に必須 | Cookie スナップショット暗号化鍵。Cookie値そのものではない |
+| `BUCKLER_LANG` | 任意 | Buckler の言語。既定値は `ja-jp` |
+| `BUCKLER_BASE_URL` | 任意 | Buckler のベースURL。既定値は `https://www.streetfighter.com/6/buckler` |
 
 ### 0.4 buildId 取得と注意点
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -11,15 +12,10 @@ import (
 )
 
 func NewConnection() (*sql.DB, error) {
-	host := getEnvWithDefault("DB_HOST", "localhost")
-	port := getEnvWithDefault("DB_PORT", "5432")
-	user := mustEnv("DB_USER")
-	password := mustEnv("DB_PASSWORD")
-	dbname := getEnvWithDefault("DB_NAME", "chatclub")
-
-	// DSN生成
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable&timezone=UTC",
-		user, password, host, port, dbname)
+	dsn, err := postgresDSNFromEnv()
+	if err != nil {
+		return nil, err
+	}
 
 	// 接続ハンドル作成
 	db, err := sql.Open("postgres", dsn)
@@ -50,6 +46,53 @@ func NewConnection() (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func postgresDSNFromEnv() (string, error) {
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		return normalizeDatabaseURL(databaseURL, getEnvWithDefault("DB_SSLMODE", "require"))
+	}
+
+	host := getEnvWithDefault("DB_HOST", "localhost")
+	port := getEnvWithDefault("DB_PORT", "5432")
+	user := mustEnv("DB_USER")
+	password := mustEnv("DB_PASSWORD")
+	dbname := getEnvWithDefault("DB_NAME", "chatclub")
+	sslmode := getEnvWithDefault("DB_SSLMODE", "disable")
+
+	// DSN生成
+	dsn := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+		Path:   "/" + dbname,
+	}
+	q := dsn.Query()
+	q.Set("sslmode", sslmode)
+	q.Set("timezone", "UTC")
+	dsn.RawQuery = q.Encode()
+
+	return dsn.String(), nil
+}
+
+func normalizeDatabaseURL(databaseURL string, defaultSSLMode string) (string, error) {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
+		return "", fmt.Errorf("unsupported DATABASE_URL scheme: %s", parsed.Scheme)
+	}
+	q := parsed.Query()
+	if q.Get("sslmode") == "" {
+		q.Set("sslmode", defaultSSLMode)
+	}
+	if q.Get("timezone") == "" {
+		q.Set("timezone", "UTC")
+	}
+	parsed.RawQuery = q.Encode()
+
+	return parsed.String(), nil
 }
 
 // 取得した環境変数が空文字ならdefaultValueを返す

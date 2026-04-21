@@ -1,0 +1,8 @@
+build:
+  docker:
+    web:
+      dockerfile: Dockerfile
+      target: prod
+run:
+  web: ./main
+
