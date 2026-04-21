@@ -113,10 +113,22 @@ curl -sSf https://atlasgo.sh | sh
 Heroku Postgres にマイグレーションを適用する。
 
 ```bash
+DB_URL="$(heroku config:get DATABASE_URL -a <APP_NAME>)"
+SEP="?"
+case "$DB_URL" in
+  *\?*) SEP="&" ;;
+esac
+
 atlas migrate apply \
   --dir "file://migrations" \
-  --url "$(heroku config:get DATABASE_URL -a <APP_NAME>)?sslmode=require"
+  --url "${DB_URL}${SEP}sslmode=require&search_path=public" \
+  --revisions-schema atlas_schema_revisions \
+  --allow-dirty
 ```
+
+`--allow-dirty` は、Heroku Postgres が管理用の `_heroku` スキーマを最初から持つため初回のみ必要になる場合がある。
+2回目以降は Atlas の revision table が作成済みなら外してよい。
+`--revisions-schema atlas_schema_revisions` は、Atlas が作成した既存の revision table を使うために指定する。
 
 ---
 
