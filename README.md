@@ -50,6 +50,9 @@ https://discord.com/oauth2/authorize?client_id=1461387682172375286&permissions=5
 ※ SF6系コマンドは Street Fighter 6 のアカウント連携が必要。  
 未連携の場合は使用できない。  
 Buckler: https://www.streetfighter.com/6/buckler/ja-jp
+また、以下で使うユーザーコード(sid)とはbuckler's boot campの自分のプロフィールサイトに書いてあるユーザーコード。
+
+![bucker profile](images/buckler-profile.png)
 
 - `/sf6_account` : 連携状況の表示・連携/解除ボタンの提示。自身の Street Fighter 6 アカウントを連携・解除できる。
 
