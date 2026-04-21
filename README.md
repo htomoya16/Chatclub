@@ -34,6 +34,7 @@ https://discord.com/oauth2/authorize?client_id=1461387682172375286&permissions=5
 セットアップ手順は docs に移動。
 
 - `docs/setup.md`
+- `docs/deploy-heroku.md`
 
 ## 🧩 コマンド一覧（できること）
 
