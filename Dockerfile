@@ -17,14 +17,13 @@ RUN apk add --no-cache \
 # Go モジュールファイルをコピー
 COPY go.mod go.sum ./
 # 依存レイヤのキャッシュ
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN go mod download
 
 # ソースコードをコピー
 COPY . .
 
 # ビルド（静的リンク）　絶対パスをバイナリから取り除く
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -trimpath -buildvcs=false -o /app/main ./cmd/server
+RUN go build -trimpath -buildvcs=false -o /app/main ./cmd/server
 
 ####################
 # 実行ステージ（prod）
@@ -69,7 +68,7 @@ RUN apk add --no-cache \
 
 # 依存解決（初回ビルド短縮用。実運用は bind mount で上書きされる）
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN go mod download
 
 # ソース（bind mount が無い場合でも動くように一旦コピー）
 COPY . .
